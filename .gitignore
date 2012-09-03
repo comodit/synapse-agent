@@ -1,0 +1,34 @@
+# Python temp files
+*.pyc
+*.spec
+synapse*.egg-info/
+dist/
+deb_dist/
+devel
+pip.egg-info
+version.py
+*.template
+
+# Rope stuff
+.ropeproject
+build/*
+
+# Vagrant stuff
+*.box
+.vagrant
+vagrant
+Vagrantfile
+
+# Others
+*.spec
+*.sw*
+*.log
+*.rvmrc
+devel
+
+# Eclipse
+.project
+.pydevproject
+.settings
+synapse/.project
+synapse/.pydevproject

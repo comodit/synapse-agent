@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+if which update-python-modules >/dev/null 2>&1; then
+	update-python-modules  synapse-agent.public
+fi
+
+if [ ! -d "/var/log/synapse-agent" ]; then
+    /bin/mkdir /var/log/synapse-agent
+fi
+
+if [ ! -d "/var/lib/synapse-agent/persistence" ]; then
+    /bin/mkdir -p /var/lib/synapse-agent/persistence
+fi
+
+if [ ! -d "/etc/synapse-agent/ssl/private" ]; then
+    /bin/mkdir -p /var/lib/synapse-agent/private
+fi
+
+if [ ! -d "/etc/synapse-agent/ssl/certs" ]; then
+    /bin/mkdir -p /var/lib/synapse-agent/certs
+fi
+
+if [ ! -d "/etc/synapse-agent/ssl/csr" ]; then
+    /bin/mkdir -p /var/lib/synapse-agent/csr
+fi
+
+/usr/sbin/update-rc.d synapse-agent defaults
+
+exit 0

@@ -1,0 +1,127 @@
+#!/bin/bash
+
+# synapse-agent Startup script for Synapse in daemon mode
+
+### BEGIN INIT INFO
+# Description: synapse-agent daemon
+# Provides: synapse-agent
+# Required-Start: $local_fs $network
+# Required-Stop: $local_fs $network
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: synapse-agent daemon
+### END INIT INFO
+
+
+# chkconfig: - 90 15
+# description: synapse-agent
+
+
+DEBIAN_VERSION=/etc/debian_version
+if [ -f $DEBIAN_VERSION ]; then
+    LOCK_FILE=/var/lock/synapse-agent.lock
+else
+    . /etc/rc.d/init.d/functions
+    LOCK_FILE=/var/lock/subsys/synapse-agent.lock
+fi
+
+RETVAL=0
+SYNAPSE=/usr/bin/synapse-agent
+DESC=synapse-agent
+PYTHON=/usr/bin/python
+LOG_PATH=/var/log/synapse-agent
+SYNAPSE=/usr/bin/synapse-agent
+PID_FILE=/var/run/synapse-agent.pid
+
+start() {
+    echo -n $"Starting synapse-agent: " 
+    if [ -f $DEBIAN_VERSION ]; then
+
+        $PYTHON $SYNAPSE --uri amqp --daemonize
+        RETVAL=$?
+        if [ $RETVAL -eq 0 ]; then
+            touch $LOCK_FILE
+        echo -n "OK"
+        echo
+            RETVAL=0
+        else
+            RETVAL=1
+        fi
+    else
+        $PYTHON $SYNAPSE --uri amqp --daemonize
+        RETVAL=$?
+        PID=`ps ax | grep $SYNAPSE | grep -v grep | awk '{ print $1 }'`
+        if [ "$PID" != "" ] ; then
+            [ $RETVAL = 0 ] && echo_success && touch $LOCK_FILE
+            echo
+            echo $PID > $PID_FILE
+        else
+            RETVAL=1
+        fi
+    fi
+    return $RETVAL
+}
+
+stop() {
+    
+    if [ ! -f $LOCK_FILE ]; then
+        echo "synapse-agent is stopped"
+    else
+        echo -n $"Stopping synapse-agent: "
+        if [ -f $DEBIAN_VERSION ]; then
+            if ps -ef | grep "$SYNAPSE" | grep -v grep | awk '{print $2}' | xargs kill; then
+                echo -n "OK"
+                rm $LOCK_FILE
+                echo
+                RETVAL=0
+            else
+                echo -n "synapse-agent is not started"
+                RETVAL=1
+            fi
+        else
+            killproc -p $PID_FILE "$PYTHON $SYNAPSE --uri amqp"
+            [ $RETVAL = 0 ] && echo_success && rm -f $LOCK_FILE
+            echo
+        fi
+    fi
+    return $RETVAL
+}
+
+check_status() {
+    if [ -f $DEBIAN_VERSION ]; then
+         if [ -f $LOCK_FILE ]; then
+             RETVAL=0
+             echo "synapse-agent is running"
+         else
+             RETVAL=1
+             echo "synapse-agent is stopped"
+         fi
+    else
+	 status -p $PID_FILE "$PYTHON $SYNAPSE"
+	 RETVAL=$?
+    fi
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  status)
+        check_status
+        ;;
+  restart)
+        stop
+        start
+        ;;
+  *)
+      N=/etc/init.d/$DESC
+        echo $"Usage: $N {start|stop|restart|status}" >&2
+    exit 1
+    ;;
+esac
+
+exit $RETVAL
+# EOF
