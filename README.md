@@ -47,7 +47,6 @@ Manage any kind of resources on the remote hosts with custom plugins. Available 
 
 Why not building a "cron" plugin.
 
-
 How ? Take a look at the existing [packages-plugin](https://github.com/comodit/synapse-agent/tree/master/synapse/resources/packages-plugin) and start your own ?
 
 ### Lightweight
