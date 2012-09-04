@@ -373,3 +373,18 @@ footer a:hover {
 
 /* Mobile Portrait Size to Mobile Landscape Size (devices and browsers) */
 @media only screen and (max-width: 479px) {}
+
+
+/* #Custom logos
+================================================== */
+
+.logos {
+    width: 100%;
+    text-align: center;
+}
+
+.logos img {
+    padding: 1px;
+    border: 1px solid grey;
+    margin: 0px 15px;
+}
