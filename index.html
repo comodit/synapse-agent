@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>Synapse by guardis</title>
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+
+        <header>
+          <h1>Synapse-Agent</h1>
+          <h3>Universal API for remote system administration</h3>
+          <a href="https://github.com/comodit/synapse-agent"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"></a>  
+        </header>
+
+        <hr>
+
+        <section id="main_content">
+
+<h1>What is the Synapse Agent ?</h1>
+<p>Synapse enables you to remotely manage a large number of hosts. It brings together features of <a href="http://en.wikipedia.org/wiki/Comparison_of_open_source_configuration_management_software">Configuration Management</a> and <a href="http://en.wikipedia.org/wiki/Orchestration_(computing)">Orchestration</a> in a lightweight framework. Written in Python and using AMQP for messaging between the nodes.</p>
+
+<h1>Key features</h1>
+<ul>
+    <li><span class="strong">REST API:</span> manipulates resources (packages, files, services, ...) instead of executing commands</li>
+    <li><span class="strong">OS Abstraction:</span> abstract the definition of resources so you can focus on the what, not the how</li>
+    <li><span class="strong">Pluggable engine:</span> manage any kind of resources on the remote hosts with custom plugins</li>
+    <li><span class="strong">Lightweight:</span> easy to deploy, small memory footprint</li>
+    <li><span class="strong">Secure:</span> no open port required (not even port 22/ssh), secured with PKI/SSL</li>
+    <li><span class="strong">Fast:</span> parallelize tasks accross all your hosts</li>
+    <li><span class="strong">Flexible:</span> reach nodes without knowing their ip or hostname, filter requests by hostname, ip, platform</li>
+</ul>
+
+<h1>Example use cases</h1>
+
+<h3>Retrieve information about all your hosts</h3>
+<pre><code>synapse-client hosts status --all</code></pre>
+<pre><code>INFO Discovered 3 hosts...
+[3836A360BC6111E1B936E9D57F000001]
+uptime        1 hour, 30 minutes, 59 seconds
+memtotal      604356
+ip            {'lo': '127.0.0.1', 'eth0': '10.56.73.148'}
+hostname      ip-10-56-73-148.eu-west-1.compute.internal
+mac_addresses {'lo': '00:00:00:00:00:00', 'eth0': '12:31:42:00:46:6a'}
+platform      ['ubuntu', '12_04']
+
+[37AAB710BC6111E1B936E9D57F000001]
+uptime        2 hours, 33 minutes, 11 seconds
+memtotal      604356
+ip            {'lo': '127.0.0.1', 'eth0': '10.64.7.207'}
+hostname      ip-10-64-7-207.eu-west-1.compute.internal
+mac_addresses {'lo': '00:00:00:00:00:00', 'eth0': '12:31:43:07:08:21'}
+platform      ['ubuntu', '12_04']
+
+[3ED0D210D57811E1AFF139357F000001]
+uptime        19 hours, 51 minutes, 52 seconds
+memtotal      502612
+ip            {'lo': '127.0.0.1', 'eth0': '192.168.5.89'}
+hostname      ip89.angleur.guardis.be
+mac_addresses {'lo': '00:00:00:00:00:00', 'eth0': '00:50:56:2c:40:0e'}
+platform      ['centos', '6_3']
+</code></pre>
+
+<h3>Install a package on all your hosts</h3>
+<pre><code>synapse-client packages install htop</code></pre>
+<p>You don't have to know about yum, apt or whatever package manager your hosts use thanks to synapse-agent's abstraction layer.</p>
+<pre><code>INFO Discovered 3 hosts...
+[3836A360BC6111E1B936E9D57F000001]
+installed True
+
+[37AAB710BC6111E1B936E9D57F000001]
+installed True
+
+[3ED0D210D57811E1AFF139357F000001]
+installed True
+</code></pre>
+
+<h3>Get the status of all your apache2 services filtered by hostname</h3>
+<pre><code>synapse-client services status apache2 --filter_hostnames=*.be</code></pre>
+<p>Note that you don't have to know how to manage services on specific machines. The synapse-agent takes care of it.</p>
+<pre><code>INFO Discovered 2 hosts...
+[3836A360BC6111E1B936E9D57F000001]
+running True
+enabled False
+
+[37AAB710BC6111E1B936E9D57F000001]
+running True
+enabled True
+</code></pre>
+
+<h3>Enable them at bootup</h3>
+<pre><code>synapse-client services enable apache2 --filter_hostnames=*.be</code></pre>
+<pre><code>INFO Discovered 2 hosts...
+[3836A360BC6111E1B936E9D57F000001]
+running True
+enabled True
+
+[37AAB710BC6111E1B936E9D57F000001]
+running True
+enabled True
+</code></pre>
+
+<h3>Modify the resolv.conf on all your hosts at once</h3>
+<pre><code>synapse-client files edit /etc/resolv.conf</code></pre>
+<p>This command retrieves this file content from your hosts. You edit it locally, and synapse-client pushes it back to all your hosts with the new content.</p>
+
+
+<h1>Convinced ? Try it out, it is free and open source</h1>
+<ul>
+<li><a href="https://github.com/comodit/synapse-agent/wiki/Quick-Start-Guide">Quick Start Guide</a></li>
+<li><a href="https://github.com/comodit/synapse-agent/wiki/AMQP-API">API Documentation</a></li>
+</ul>
+
+</br>
+</br>
+</div>
+</div>
+</body>
+</html>
