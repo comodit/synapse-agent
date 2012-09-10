@@ -1,3 +1,5 @@
+[Synapse Agent front page](http://comodit.github.com/synapse-agent/)
+
 ## What is the Synapse Agent ?
 Synapse enables you to remotely manage a large number of hosts.  It brings
 together features of Configuration Management and Orchestration in a
