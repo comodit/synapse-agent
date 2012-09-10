@@ -5,6 +5,7 @@ lightweight framework.  Written in Python and using AMQP for messaging between
 the nodes.
 
 [Learn more !](http://comodit.github.com/synapse-agent/)
+
 [View first screencast](http://www.youtube.com/watch?v=SrXDTZJLeGg)
 
 ## What do you need ?
