@@ -165,7 +165,11 @@ class Config(object):
         return conf
 
     def get_platform(self):
-        dist = platform.linux_distribution()
+        dist = ('linux', '0')
+        if platform.system().lower() == 'linux':
+            dist = platform.linux_distribution()
+        elif platform.system().lower() == 'windows':
+            dist = ('windows', platform.win32_ver()[0])
         return (self._format_string(dist[0]), self._format_string(dist[1]))
 
     def _format_string(self, s):

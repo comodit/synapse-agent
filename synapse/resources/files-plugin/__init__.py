@@ -6,7 +6,7 @@ os_mapping = """
 default=unix-files
 
 [windows]
-default=windows-files
+default=win-files
 """
 
 register(os_mapping, FilesController)

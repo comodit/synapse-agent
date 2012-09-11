@@ -9,7 +9,7 @@ major, minor, micro = python_version().split('.')
 if major != '2' or minor not in ['6', '7']:
     raise Exception('unsupported version of python')
 
-requires = ['pika == 0.9.5',
+requires = ['pika >= 0.9.5',
             'netifaces >= 0.5',
             'M2Crypto >= 0.15']
 
