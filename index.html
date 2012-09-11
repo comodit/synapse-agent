@@ -43,6 +43,82 @@
     <li><span class="strong">Flexible:</span> reach nodes without knowing their ip or hostname, filter requests by hostname, ip, platform</li>
 </ul>
 
+<h1>Comparison with similar tools</h1>
+
+<p>
+Synapse has similar features than tools like Salt, mCollective and Ansible. The
+main differences lies in the REST approach, the OS abstraction layer and the
+fine grained acces control. These differences are summarized below. Don't
+hesitate to let us know if you think we got something wrong.
+</p>
+
+<table>
+    <tr>
+        <th></th>
+        <th>Synapse</th>
+        <th>Salt</th>
+        <th>mCollective</th>
+        <th>Ansible</th>
+    </tr>
+    <tr>
+        <td>Transport</td>
+        <td>AMQP</td>
+        <td>ZeroMQ</td>
+        <td>ActiveMQ</td>
+        <td>SSH</td>
+    </tr>
+    <tr>
+        <td>API</td>
+        <td>REST</td>
+        <td>RPC</td>
+        <td>RPC</td>
+        <td>n/a</td>
+    </tr>
+    <tr>
+        <td>OS Abstraction</td>
+        <td>&#10003;</td>
+        <td>&#10003;</td>
+        <td>n/a</td>
+        <td>n/a</td>
+    </tr>
+    <tr>
+        <td>Data format</td>
+        <td>Json</td>
+        <td>Binary</td>
+        <td>Json</td>
+        <td>n/a</td>
+    </tr>
+    <tr>
+        <td>Access Control</td>
+        <td>Fine grained</td>
+        <td>n/a</td>
+        <td>n/a</td>
+        <td>n/a</td>
+    </tr>
+    <tr>
+        <td>Windows support</td>
+        <td>&#10003;</td>
+        <td>&#10003;</td>
+        <td>&#10003;</td>
+        <td>n/a</td>
+    </tr>
+    <tr>
+        <td>Language</td>
+        <td>Python</td>
+        <td>Python</td>
+        <td>Ruby</td>
+        <td>Python</td>
+    </tr>
+    <tr>
+        <td>License</td>
+        <td>MIT</td>
+        <td>Apache v2</td>
+        <td>Apache v2</td>
+        <td>GPLv3</td>
+    </tr>
+</table>
+<br />
+
 <h1>Example use cases</h1>
 
 <h3>Retrieve information about all your hosts</h3>
