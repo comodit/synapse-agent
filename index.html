@@ -34,90 +34,27 @@
 
 <h1>Key features</h1>
 <ul>
-    <li><span class="strong">REST API:</span> manipulates resources (packages, files, services, ...) instead of executing commands</li>
-    <li><span class="strong">OS Abstraction:</span> abstract the definition of resources so you can focus on the what, not the how</li>
-    <li><span class="strong">Pluggable engine:</span> manage any kind of resources on the remote hosts with custom plugins</li>
-    <li><span class="strong">Lightweight:</span> easy to deploy, small memory footprint</li>
-    <li><span class="strong">Secure:</span> no open port required (not even port 22/ssh), secured with PKI/SSL</li>
-    <li><span class="strong">Fast:</span> parallelize tasks accross all your hosts</li>
-    <li><span class="strong">Flexible:</span> reach nodes without knowing their ip or hostname, filter requests by hostname, ip, platform</li>
+    <li><span class="strong">Descriptive approach:</span>  In Synapse, you don't
+    <em>execute commands</em> (i.e. RPC model) on the target host. Instead you
+    describe a resource (files,package,service,..) and ask synapse to put it in
+    a defined state. This means that the synapse agent knows the resources your
+    are interested in, it can monitor them and alert you when their state
+    changes (e.g. a file is changed, a service is stopped,..).</li>
+
+    <li><span class="strong">OS abstraction:</span> The resource definition is
+    OS independent. If you want a service to be started you just update the
+    resource definition for that service (e.g. {"running": true}). Synapse will
+    do what it needs to start the service, whatever the underlying OS.  This
+    means that your scripts and orchestration logic use always the same API, you
+    don't have to particularize the logic per platform.</li>
+
+    <li><span class="strong">Fine grained permissions:</span> Fine grained
+    permissions can be set to control user access to resources.  You can thus
+    easily say that <em>user x can restart service y</em> or <em>user a can read
+    the content of file b</em>, etc.</li> 
 </ul>
 
-<h1>Comparison with similar tools</h1>
-
-<p>
-Synapse has similar features than tools like Salt, mCollective and Ansible. The
-main differences lies in the REST approach, the OS abstraction layer and the
-fine grained acces control. These differences are summarized below. Don't
-hesitate to let us know if you think we got something wrong.
-</p>
-
-<table>
-    <tr>
-        <th></th>
-        <th>Synapse</th>
-        <th>Salt</th>
-        <th>mCollective</th>
-        <th>Ansible</th>
-    </tr>
-    <tr>
-        <td>Transport</td>
-        <td>AMQP</td>
-        <td>ZeroMQ</td>
-        <td>ActiveMQ</td>
-        <td>SSH</td>
-    </tr>
-    <tr>
-        <td>API</td>
-        <td>REST</td>
-        <td>RPC</td>
-        <td>RPC</td>
-        <td>n/a</td>
-    </tr>
-    <tr>
-        <td>OS Abstraction</td>
-        <td>&#10003;</td>
-        <td>&#10003;</td>
-        <td>n/a</td>
-        <td>n/a</td>
-    </tr>
-    <tr>
-        <td>Data format</td>
-        <td>Json</td>
-        <td>Binary</td>
-        <td>Json</td>
-        <td>n/a</td>
-    </tr>
-    <tr>
-        <td>Access Control</td>
-        <td>Fine grained</td>
-        <td>n/a</td>
-        <td>n/a</td>
-        <td>n/a</td>
-    </tr>
-    <tr>
-        <td>Windows support</td>
-        <td>&#10003;</td>
-        <td>&#10003;</td>
-        <td>&#10003;</td>
-        <td>n/a</td>
-    </tr>
-    <tr>
-        <td>Language</td>
-        <td>Python</td>
-        <td>Python</td>
-        <td>Ruby</td>
-        <td>Python</td>
-    </tr>
-    <tr>
-        <td>License</td>
-        <td>MIT</td>
-        <td>Apache v2</td>
-        <td>Apache v2</td>
-        <td>GPLv3</td>
-    </tr>
-</table>
-<br />
+<p>See this <a>wiki page</a> for an up-to-date features list and roadmap.</p>
 
 <h1>Example use cases</h1>
 
