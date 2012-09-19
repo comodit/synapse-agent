@@ -11,7 +11,7 @@ major, minor, micro = platform.python_version().split('.')
 if major != '2' or minor not in ['6', '7']:
     raise Exception('unsupported version of python')
 
-requires = ['pika >= 0.9.5',
+requires = ['pika == 0.9.5-1',
             'netifaces >= 0.5',
             'M2Crypto >= 0.15']
 
@@ -48,7 +48,7 @@ if platform.system().lower() == 'windows':
     data_files = win_data_files
 
 scripts = ["bin/synapse-agent"]
-dependency_links = ['http://github.com/raphdg/pika/tarball/ssl#egg=pika-0.9.5']
+dependency_links = ['http://github.com/raphdg/pika/tarball/ssl#egg=pika-0.9.5-1']
 
 setup(
     name='synapse-agent',
