@@ -4,6 +4,8 @@ import uuid
 import platform
 import ConfigParser
 
+from distutils import sysconfig
+
 
 class Config(object):
 
@@ -33,9 +35,12 @@ class Config(object):
                 newvalue = os.path.join(rootdir, 'devel', value[1:])
                 self.paths.update({key: newvalue})
 
-        if windows:
-            #TODO: windows paths ?
-            pass
+        elif windows:
+            prefix = os.path.dirname(sysconfig.PREFIX)
+            full_prefix = os.path.join(prefix, 'synapse-agent')
+            for key, value in self.paths.iteritems():
+                newval = value.replace('/', '\\')[1:]
+                self.paths[key] = os.path.join(full_prefix, newval)
 
         self.conf = self.load_config('conf')
 
@@ -216,7 +221,8 @@ class Config(object):
 
 
 devel = os.path.exists(os.path.join(os.path.dirname(__file__), '..', 'devel'))
+windows = platform.system().lower() == 'windows'
 try:
-    config = Config(name='synapse-agent', devel=devel)
+    config = Config(name='synapse-agent', devel=devel, windows=windows)
 except Exception as err:
     sys.exit('Error in config module: %s' % err)
