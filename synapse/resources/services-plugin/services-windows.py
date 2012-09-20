@@ -21,7 +21,7 @@ def enable(name):
 
 
 def disable(name):
-    ret = exec_cmd("sc config {0} start= disabled".format(name))
+    ret = exec_cmd("sc config {0} start= demand".format(name))
     if ret['returncode'] != 0:
         raise ResourceException(ret['stderr'])
 
