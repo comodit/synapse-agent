@@ -16,9 +16,6 @@ default=apt
 
 [ubuntu]
 default=apt
-
-[windows]
-default=win-pk
 """
 
 register(os_mapping, PackagesController)

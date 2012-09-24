@@ -68,7 +68,7 @@ def init_parser():
 
 
 class Main(object):
-    def __init__(self):
+    def __init__(self, parse_commandline=True):
         # Initialize the parser
         self.parser = init_parser()
 
@@ -79,7 +79,8 @@ class Main(object):
         self.daemon = SynapseDaemon(config.paths['pid'])
 
         try:
-            options, args = self.parser.parse_args()
+            cli_args = sys.argv[1:] if parse_commandline else []
+            options, args = self.parser.parse_args(cli_args)
             self.parse_commandline(options, args)
 
             # Daemonize process ?

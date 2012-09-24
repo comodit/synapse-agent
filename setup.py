@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from platform import python_version
+import os
+import distutils
+import platform
 from setuptools import setup, find_packages
 
-major, minor, micro = python_version().split('.')
+major, minor, micro = platform.python_version().split('.')
 
 if major != '2' or minor not in ['6', '7']:
     raise Exception('unsupported version of python')
 
-requires = ['pika == 0.9.5',
+requires = ['pika == 0.9.5-1',
             'netifaces >= 0.5',
             'M2Crypto >= 0.15']
 
@@ -33,8 +35,20 @@ data_files = [('/etc/synapse-agent', ['conf/synapse-agent.conf',
               ('/var/lib/synapse-agent/persistence', []),
               ('/var/log/synapse-agent', [])]
 
+if platform.system().lower() == 'windows':
+    win_data_files = []
+    prefix = os.path.dirname(distutils.sysconfig.PREFIX)
+    full_prefix = os.path.join(prefix, 'synapse-agent')
+
+    for index, pair in enumerate(data_files):
+        folder = pair[0].replace("/", "\\")[1:]
+        flist = [x.replace("/", "\\") for x in pair[1]]
+        win_data_files.append((os.path.join(full_prefix, folder), flist))
+
+    data_files = win_data_files
+
 scripts = ["bin/synapse-agent"]
-dependency_links = ['http://github.com/raphdg/pika/tarball/ssl#egg=pika-0.9.5']
+dependency_links = ['http://github.com/raphdg/pika/tarball/ssl#egg=pika-0.9.5-1']
 
 setup(
     name='synapse-agent',
