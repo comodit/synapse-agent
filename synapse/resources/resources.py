@@ -98,7 +98,7 @@ class ResourcesController(object):
         raise NotImplementedError('%s monitoring not implemented'
                                   % self.__resource__)
 
-    def _publish_status(self, res_id, state, message_type=None):
+    def _publish_status(self, res_id, state):
         if not self.publish_status:
             return
 
@@ -119,7 +119,7 @@ class ResourcesController(object):
             'routing_key': self.compliance_routing_key
         }
 
-    def _publish(self, res_id, state, response, message_type=None):
+    def _publish(self, res_id, state, response):
         """When a state change is detected, this method publish a message to
         the transport layer"""
 

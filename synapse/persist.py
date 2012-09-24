@@ -47,7 +47,7 @@ class Persistence(object):
                 data[indexes[0]].update(resource)
                 if not update_alert:
                     try:
-                        del data[indexes[0]]['status']['last_alert']
+                        del data[indexes[0]]['last_alert']
                     except KeyError:
                         pass
             elif len(indexes) == 0:
