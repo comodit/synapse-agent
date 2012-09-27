@@ -7,14 +7,13 @@ from synapse.synapse_exceptions import ResourceException
 repo_path = "/etc/yum.repos.d"
 
 
-def get_repos(name):
+def get_repos(name, details=False):
 
     repos = {}
     repo_file_list = os.listdir(repo_path)
 
     for repo_file in repo_file_list:
         repo_file_path = os.path.join(repo_path, repo_file)
-        #Bleuargh, I don't like this
         config = ConfigParser.RawConfigParser()
         config.read(repo_file_path)
         for section in config.sections():
@@ -22,10 +21,15 @@ def get_repos(name):
             repo["filename"] = repo_file_path
             repos[section] = repo
 
+    response = repos
+
     if name:
-        return repos.get(name)
+        response = repos.get(name)
     else:
-        return repos
+        if not details:
+            response = repos.keys()
+
+    return response
 
 
 def create_repo(id, attributes):

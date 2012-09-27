@@ -96,12 +96,13 @@ class Controller(Thread):
 
         # Check if the message body contains filters.
         filters = body.get('filters')
+        res_id = body.get('id') or ''
 
         if check_perm:
             perms = permissions.check(self.permissions,
                                       user_id,
                                       body.get('collection'),
-                                      body.get('id'))
+                                      res_id)
 
             if body.get('action') not in perms:
                 raise ResourceException("You don't have permission to do "
