@@ -32,7 +32,7 @@ def get_repos(name, details=False):
     return response
 
 
-def create_repo(id, attributes):
+def create_repo(name, attributes):
 
     config_parser = ConfigParser.RawConfigParser()
 
@@ -66,7 +66,7 @@ def create_repo(id, attributes):
               "skip_if_unavailable")
 
     # Check if repo already exists
-    repo = get_repos(id)
+    repo = get_repos(name)
 
     # If it exists, get the filename in which the repo is defined
     # If not, check if a filename is user provided
@@ -76,7 +76,7 @@ def create_repo(id, attributes):
     elif attributes.get("filename"):
         filename = attributes["filename"]
     else:
-        filename = "%s.repo" % id
+        filename = "%s.repo" % name
 
     # Read the config file (empty or not) and load it in a ConfigParser
     # object
@@ -85,23 +85,23 @@ def create_repo(id, attributes):
 
     # Check if the repo is define in the ConfigParser context.
     # If not, add a section based on the repo name.
-    if not config_parser.has_section(id):
-        config_parser.add_section(id)
-        config_parser.set(id, "name", id)
+    if not config_parser.has_section(name):
+        config_parser.add_section(name)
+        config_parser.set(name, "name", name)
 
     # Update the section with not None fields provided by the user
     for key, value in attributes.items():
         if value is not None and key in values:
-            config_parser.set(id, key, value)
+            config_parser.set(name, key, value)
 
     # Write changes to the repo file.
     with open(repo_file_path, 'wb') as repofile:
         config_parser.write(repofile)
 
 
-def delete_repo(id):
+def delete_repo(name, attributes):
     config_parser = ConfigParser.RawConfigParser()
-    repo = get_repos(id)
+    repo = get_repos(name)
 
     if repo:
 
@@ -109,7 +109,7 @@ def delete_repo(id):
         repo_file_path = os.path.join(repo_path, filename)
         config_parser.read(repo_file_path)
 
-        if config_parser.remove_section(id):
+        if config_parser.remove_section(name):
             # Write changes to the repo file.
             with open(repo_file_path, 'wb') as repofile:
                 config_parser.write(repofile)

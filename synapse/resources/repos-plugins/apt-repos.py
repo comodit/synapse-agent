@@ -82,6 +82,7 @@ def _full_entry(entry):
 
 
 def delete_repo(name, attributes):
+    repo = {}
     repo_file = os.path.join(src_dir, name + '.list')
 
     # If the file already exists, load repo into a dict
