@@ -1,5 +1,6 @@
 import os
 
+from synapse.synapse_exceptions import ResourceException
 
 src_dir = "/etc/apt/sources.list.d"
 
@@ -20,26 +21,60 @@ def get_repos(name, details=False):
 def create_repo(name, attributes={}):
     # Initialize the repo dictionnary
     repo = {}
-    repo_file = os.path.join(src_dir, name, '.conf')
+    repo_file = os.path.join(src_dir, name + '.list')
 
     # If the file already exists, load repo into a dict
     if os.path.isfile(repo_file):
         repo = _load_repo(repo_file)
 
-    authorized = ('url', 'distribution', 'components')
-    newrepo = dict((k, v) for k, v in attributes.iteritems() 
-                   if k in authorized)
+    newrepo = {}
 
+    try:
+        # baseurl attr is mandatory
+        baseurl = attributes['baseurl']
+
+        # if the full entry is not provided (i.e "deb url dist [components]")
+        # distribution and components attr are mandatory
+        if not _full_entry(baseurl):
+            url = baseurl
+            distribution = attributes['distribution']
+            components = attributes['components']
+
+        # If the full entry is provided, just split it into required elements
+        else:
+            url = baseurl.split()[1]
+            distribution = baseurl.split()[2]
+            components = baseurl.split()[3:]
+        
+        # Build the new repo dict
+        newrepo = {'baseurl': url,
+                   'distribution': distribution,
+                   'components': components}
+            
+    except KeyError as err:
+        raise ResourceException("Missing mandatory attribute [%s]" % err)
+
+    # If that repo already exist, del entry and add the new one
     if name in repo:
-        repo[name].update(newrepo)
+        for index, rep in enumerate(repo[name]):
+            if (rep['baseurl'] == newrepo['baseurl'] and
+                rep['distribution'] == newrepo['distribution']):
+
+                del repo[name][index]
+        
+        repo[name].append(newrepo)
     else:
-        repo[name] = newrepo
+        repo[name] = [newrepo]
 
     _dump_repo(repo)
 
 
+def _full_entry(entry):
+    return len(entry.split()) >= 3
+
+
 def delete_repo(name):
-    repo_file = os.path.join(src_dir, name, '.conf')
+    repo_file = os.path.join(src_dir, name, '.list')
     if os.path.isfile(repo_file):
         os.remove(repo_file)
 
@@ -55,7 +90,7 @@ def _load_repo(full_path):
                 break
             elements = line.split()
             if len(elements) > 1 and elements[0] == 'deb':
-                tmp_repo['url'] = elements[1]
+                tmp_repo['baseurl'] = elements[1]
                 tmp_repo['distribution'] = elements[2]
                 components = elements[3:]
                 if len(components):
@@ -68,11 +103,11 @@ def _load_repo(full_path):
 
 def _dump_repo(repodict):
     for reponame, value in repodict.iteritems():
-        repo_file = os.path.join(src_dir, reponame, '.conf')
+        repo_file = os.path.join(src_dir, reponame + '.list')
         with open(repo_file, 'w') as fd:
             debstr = []
             debstr.append('deb')
-            debstr.append(value['url'])
+            debstr.append(value['baseurl'])
             debstr.append(value['distribution'])
             for comp in value['components']:
                 debstr.append(comp)
