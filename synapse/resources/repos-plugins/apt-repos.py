@@ -39,12 +39,14 @@ def create_repo(name, attributes={}):
             url = baseurl
             distribution = attributes['distribution']
             components = attributes['components']
+            if not isinstance(components, list):
+                components = ''.join(components.split()).split(',')
 
         # If the full entry is provided, just split it into required elements
         else:
-            url = baseurl.split()[1]
-            distribution = baseurl.split()[2]
-            components = baseurl.split()[3:]
+            url = baseurl.split()[0]
+            distribution = baseurl.split()[1]
+            components = baseurl.split()[2:]
         
         # Build the new repo dict
         newrepo = {'baseurl': url,
@@ -70,11 +72,17 @@ def create_repo(name, attributes={}):
 
 
 def _full_entry(entry):
-    return len(entry.split()) >= 3
+    items = entry.split()
+    if len(items) == 1:
+        return False
+    elif len(items) >= 3:
+        return True
+    else:
+        raise ResourceException("Invalid baseurl attribute.")
 
 
 def delete_repo(name):
-    repo_file = os.path.join(src_dir, name, '.list')
+    repo_file = os.path.join(src_dir, name + '.list')
     if os.path.isfile(repo_file):
         os.remove(repo_file)
 
@@ -112,4 +120,4 @@ def _dump_repo(repodict):
                 debstr.append(item['distribution'])
                 for comp in item['components']:
                     debstr.append(comp)
-                fd.write(' '.join(debstr))
+                fd.write(' '.join(debstr) + '\n')
