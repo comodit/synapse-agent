@@ -40,13 +40,13 @@ def create_repo(name, attributes={}):
             distribution = attributes['distribution']
             components = attributes['components']
             if not isinstance(components, list):
-                components = ''.join(components.split()).split(',')
+                components = set(''.join(components.split()).split(','))
 
         # If the full entry is provided, just split it into required elements
         else:
             url = baseurl.split()[0]
             distribution = baseurl.split()[1]
-            components = baseurl.split()[2:]
+            components = set(baseurl.split()[2:])
         
         # Build the new repo dict
         newrepo = {'baseurl': url,
@@ -81,10 +81,41 @@ def _full_entry(entry):
         raise ResourceException("Invalid baseurl attribute.")
 
 
-def delete_repo(name):
+def delete_repo(name, attributes):
     repo_file = os.path.join(src_dir, name + '.list')
+
+    # If the file already exists, load repo into a dict
     if os.path.isfile(repo_file):
-        os.remove(repo_file)
+        repo = _load_repo(repo_file)
+
+    try:
+        # baseurl attr is mandatory
+        baseurl = attributes['baseurl']
+
+        if len(baseurl.split()) == 1:
+            url = baseurl
+            distribution = attributes['distribution']
+
+        elif len(baseurl.split()) > 1:
+            url = baseurl.split()[0]
+            distribution = baseurl.split()[1]
+
+        # Build the new repo dict
+        deleterepo = {'baseurl': url,
+                      'distribution': distribution}
+            
+    except KeyError as err:
+        raise ResourceException("Missing mandatory attribute [%s]" % err)
+
+    if name in repo:
+        for index, rep in enumerate(repo[name]):
+            if (rep['baseurl'] == deleterepo['baseurl'] and
+                rep['distribution'] == deleterepo['distribution']):
+
+                del repo[name][index]
+    
+        if not len(repo[name]):
+            os.remove(repo_file)
 
 
 def _load_repo(full_path):
