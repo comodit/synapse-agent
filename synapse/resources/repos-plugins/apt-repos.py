@@ -102,13 +102,14 @@ def _load_repo(full_path):
 
 
 def _dump_repo(repodict):
-    for reponame, value in repodict.iteritems():
+    for reponame, repos in repodict.iteritems():
         repo_file = os.path.join(src_dir, reponame + '.list')
         with open(repo_file, 'w') as fd:
-            debstr = []
-            debstr.append('deb')
-            debstr.append(value['baseurl'])
-            debstr.append(value['distribution'])
-            for comp in value['components']:
-                debstr.append(comp)
-            fd.write(' '.join(debstr))
+            for item in repos:
+                debstr = []
+                debstr.append('deb')
+                debstr.append(item['baseurl'])
+                debstr.append(item['distribution'])
+                for comp in item['components']:
+                    debstr.append(comp)
+                fd.write(' '.join(debstr))
