@@ -65,6 +65,12 @@ def create_repo(name, attributes):
               "cost",
               "skip_if_unavailable")
 
+    baseurl = None
+    try:
+        baseurl = attributes['baseurl'].split()[0]
+    except (KeyError, AttributeError) as err:
+        raise ResourceException("Wrong baseurl attribute [%s]" % err)
+
     # Check if repo already exists
     repo = get_repos(name)
 
@@ -93,6 +99,8 @@ def create_repo(name, attributes):
     for key, value in attributes.items():
         if value is not None and key in values:
             config_parser.set(name, key, value)
+
+    config_parser.set(name, 'baseurl', baseurl)
 
     # Write changes to the repo file.
     with open(repo_file_path, 'wb') as repofile:
