@@ -4,7 +4,7 @@
 synapse*.egg-info/
 dist/
 deb_dist/
-devel
+devel*/
 pip.egg-info
 version.py
 *.template

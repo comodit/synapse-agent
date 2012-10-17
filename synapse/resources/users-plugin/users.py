@@ -41,7 +41,12 @@ class UsersController(ResourcesController):
             "attributes": {
                 "password": "secret",
                 "login_group": "raph",
-                "groups": "mock,wheel"
+                "groups": "mock,wheel",
+                "homedir": "/home/raph",
+                "full_name": "Raphael De Giusti",
+                "uid": "uid",
+                "gid": "gid",
+                "shell": "shell",
                 }
         }
         """
@@ -51,11 +56,18 @@ class UsersController(ResourcesController):
                 raise ResourceException("User already exists")
 
             self.logger.info("Creating the user '%s'" % res_id)
-            password = attributes.get("password")
-            login_group = attributes.get("login_group")
-            groups = attributes.get("groups")
+            password = attributes.get('password')
+            login_group = attributes.get('login_group')
+            groups = attributes.get('groups')
+            homedir = attributes.get('homedir')
+            comment = attributes.get('full_name')
+            uid = attributes.get('uid')
+            gid = attributes.get('gid')
+            shell = attributes.get('shell')
 
-            self.module.user_add(res_id, password, login_group, groups)
+            self.module.user_add(res_id, password, login_group, groups, 
+                                 homedir, comment, uid, gid, shell)
+
             status = self.module.get_user_infos(res_id)
             response = self.set_response(status)
             self.logger.info("The user '%s' has been created" % res_id)
@@ -96,14 +108,17 @@ class UsersController(ResourcesController):
         add_to_groups = attributes.get("add_to_groups")
         remove_from_groups = attributes.get("remove_from_groups")
         set_groups = attributes.get("set_groups")
+        homedir = attributes.get('homedir')
+        move_home = attributes.get('move_home')
+        comment = attributes.get('full_name')
+        uid = attributes.get('uid')
+        gid = attributes.get('gid')
+        shell = attributes.get('shell')
 
         try:
-            self.module.user_mod(res_id,
-                                 password,
-                                 login_group,
-                                 add_to_groups,
-                                 remove_from_groups,
-                                 set_groups)
+            self.module.user_mod(res_id, password, login_group, add_to_groups,
+                                 remove_from_groups, set_groups, homedir,
+                                 move_home, comment, uid, gid, shell)
 
             status = self.module.get_user_infos(res_id)
             response = self.set_response(status)

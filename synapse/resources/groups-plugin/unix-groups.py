@@ -23,19 +23,39 @@ def format_group_info(name):
         raise ResourceException("Group not found")
 
 
-def group_add(name):
-    ret = exec_cmd("/usr/sbin/groupadd {0}".format(name))
+def group_add(name, gid):
+    cmd = ["/usr/sbin/groupadd"]
+
+    if gid:
+        cmd = cmd + ['--gid', gid]
+
+    cmd.append(name)
+
+    ret = exec_cmd(' '.join(cmd))
+
     if ret['returncode'] != 0:
         raise ResourceException(ret['stderr'])
 
 
-def group_mod(name, new_name):
-    ret = exec_cmd("/usr/sbin/groupmod -n {0} {1}".format(new_name, name))
+def group_mod(name, new_name, gid):
+    cmd = ["/usr/sbin/groupadd"]
+
+    if new_name:
+        cmd = cmd + ['--new-name', new_name]
+
+    if gid:
+        cmd = cmd + ['--gid', gid]
+
+    cmd.append(name)
+
+
+    ret = exec_cmd(' '.join(cmd))
+
     if ret['returncode'] != 0:
         raise ResourceException(ret['stderr'])
 
 
 def group_del(name):
-    ret = exec_cmd("/usr/sbin/groupdel {0}".format(name))
+    ret = exec_cmd("/usr/sbin/groupdel %s" % name)
     if ret['returncode'] != 0:
         raise ResourceException(ret['stderr'])

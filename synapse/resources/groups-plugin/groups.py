@@ -39,11 +39,15 @@ class GroupsController(ResourcesController):
             "action": "create",
             "collection": "groups",
             "id": "root"
+            "attributes": {
+                "gid": "0"
+            }
         }
         """
         try:
             self.logger.info("Creating the group: %s" % res_id)
-            self.module.group_add(res_id)
+            gid = attributes.get("gid")
+            self.module.group_add(res_id, gid)
             status = self.module.get_group_infos(res_id)
             response = self.set_response(status)
             self.logger.info("The group %s has been created" % res_id)
@@ -57,32 +61,30 @@ class GroupsController(ResourcesController):
 
         return response
 
-    def update(self, res_id=None, attributes=None):
+    def update(self, res_id=None, attributes={}):
         """
         {
             "action": "update",
             "collection": "groups",
             "id": "rapha"
-            "attributes": {"new_name": "raph"}
+            "attributes": {"new_name": "raph",
+                           "gid": "1001"}
         }
         """
         try:
-            if isinstance(attributes, dict):
-                new_name = attributes.get("new_name")
-                if not new_name:
-                    raise ResourceException("Please specify the new name")
+            new_name = attributes.get("new_name")
+            gid = attributes.get("gid")
 
-                self.logger.info("Updating the group: %s" % res_id)
-                self.module.group_mod(res_id, new_name)
-                status = self.module.get_group_infos(new_name)
-                response = self.set_response(status)
-                self.logger.info("The group %s has been updated" % res_id)
+            self.logger.info("Updating the group: %s" % res_id)
+            self.module.group_mod(res_id, new_name, gid)
+            status = self.module.get_group_infos(new_name)
+            response = self.set_response(status)
+            self.logger.info("The group %s has been updated" % res_id)
 
-            else:
-                raise ResourceException("")
 
         except ResourceException, err:
             response = self.set_response("Group Error", error="%s" % err)
+
         if 'error' in response:
             self.logger.info('Error when creating group %s: %s'
                     % (res_id, response['error']))
