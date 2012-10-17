@@ -24,14 +24,9 @@ class ReposController(ResourcesController):
         """
 
         status = {}
-        try:
-            status = self.module.get_repos(res_id)
-            response = self.set_response(status)
-
-        except ResourceException, error:
-            response = self.set_response(status, error='%s' % error)
-
-        return response
+        details = attributes.get('details')
+        status = self.module.get_repos(res_id, details=details)
+        return self.set_response(status)
 
     def create(self, res_id=None, attributes=None):
         """
@@ -97,7 +92,7 @@ class ReposController(ResourcesController):
         status = {}
 
         try:
-            self.module.delete_repo(res_id)
+            self.module.delete_repo(res_id, attributes)
             if not self.module.get_repos(res_id):
                 status["present"] = False
                 response = self.set_response(status)
