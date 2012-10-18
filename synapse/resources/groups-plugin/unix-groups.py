@@ -12,42 +12,43 @@ def get_group_infos(name=None):
 
 
 def format_group_info(name):
+    d = {}
     try:
         gr = grp.getgrnam(name)
-        d = {}
+        d["present"] = True
         d["name"] = gr.gr_name
         d["members"] = gr.gr_mem
         d["gid"] = gr.gr_gid
-        return d
     except KeyError:
-        raise ResourceException("Group not found")
+        d["present"] = False
+    return d
 
 
 def group_add(name, gid):
     cmd = ["/usr/sbin/groupadd"]
 
     if gid:
-        cmd = cmd + ['--gid', gid]
+        cmd += ['--gid', gid]
 
     cmd.append(name)
 
     ret = exec_cmd(' '.join(cmd))
 
-    if ret['returncode'] != 0:
+    # retcode 9 is group already exists. That's what we want.
+    if ret['returncode'] != 9 and ret['returncode'] != 0:
         raise ResourceException(ret['stderr'])
 
 
 def group_mod(name, new_name, gid):
-    cmd = ["/usr/sbin/groupadd"]
+    cmd = ["/usr/sbin/groupmod"]
 
     if new_name:
-        cmd = cmd + ['--new-name', new_name]
+        cmd += ['--new-name', new_name]
 
     if gid:
-        cmd = cmd + ['--gid', gid]
+        cmd += ['--gid', gid]
 
     cmd.append(name)
-
 
     ret = exec_cmd(' '.join(cmd))
 
@@ -57,5 +58,7 @@ def group_mod(name, new_name, gid):
 
 def group_del(name):
     ret = exec_cmd("/usr/sbin/groupdel %s" % name)
-    if ret['returncode'] != 0:
+
+    # retcode 6 is group doesn't exist. That's what we want.
+    if ret['returncode'] != 6 and ret['returncode'] != 0:
         raise ResourceException(ret['stderr'])

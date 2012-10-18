@@ -1,3 +1,5 @@
+import re
+
 from synapse.resources.resources import ResourcesController
 from synapse.synapse_exceptions import ResourceException
 from synapse.logger import logger
@@ -52,15 +54,12 @@ class UsersController(ResourcesController):
         """
         response = {}
         try:
-            if self.module.user_exists(res_id):
-                raise ResourceException("User already exists")
-
             self.logger.info("Creating the user '%s'" % res_id)
             password = attributes.get('password')
-            login_group = attributes.get('login_group')
-            groups = attributes.get('groups')
-            homedir = attributes.get('homedir')
-            comment = attributes.get('full_name')
+            login_group = attributes.get('login_group') or res_id
+            groups = self.sanitize_groups(attributes.get('groups', []))
+            homedir = attributes.get('homedir') or '/home/%s' % res_id
+            comment = attributes.get('full_name') or ''
             uid = attributes.get('uid')
             gid = attributes.get('gid')
             shell = attributes.get('shell')
@@ -68,13 +67,40 @@ class UsersController(ResourcesController):
             self.module.user_add(res_id, password, login_group, groups, 
                                  homedir, comment, uid, gid, shell)
 
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['present'] = True
+                item['name'] = res_id
+                if password:
+                    item['password'] = self.module.get_pw(res_id)
+                item['groups'] = [login_group]
+                if groups:
+                    item['groups'] += groups
+                if homedir:
+                    item['homedir'] = homedir
+                if comment:
+                    item['comment'] = comment
+                if uid:
+                    item['uid'] = uid
+                if gid:
+                    item['gid'] = gid
+                if shell:
+                    item['shell'] = shell
+                self.persister.persist(self.set_response(item))
+
+            elif monitor is False:
+                item = {}
+                item['present'] = False
+                self.persister.unpersist(self.set_response(item))
+
             status = self.module.get_user_infos(res_id)
             response = self.set_response(status)
             self.logger.info("The user '%s' has been created" % res_id)
 
         except ResourceException, err:
             status = {}
-            status["present"] = False
+            status['present'] = False
             response = self.set_response(status, error="%s" % err)
 
         if 'error' in response:
@@ -105,9 +131,7 @@ class UsersController(ResourcesController):
         self.logger.info("Updating the user: %s" % res_id)
         password = attributes.get("password")
         login_group = attributes.get("login_group")
-        add_to_groups = attributes.get("add_to_groups")
-        remove_from_groups = attributes.get("remove_from_groups")
-        set_groups = attributes.get("set_groups")
+        groups = self.sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir')
         move_home = attributes.get('move_home')
         comment = attributes.get('full_name')
@@ -116,9 +140,26 @@ class UsersController(ResourcesController):
         shell = attributes.get('shell')
 
         try:
-            self.module.user_mod(res_id, password, login_group, add_to_groups,
-                                 remove_from_groups, set_groups, homedir,
-                                 move_home, comment, uid, gid, shell)
+            self.module.user_mod(res_id, password, login_group, groups,
+                                 homedir, move_home, comment, uid, gid, shell)
+
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['present'] = True
+                item['name'] = res_id
+                item['password'] = self.module.get_pw(res_id)
+                item['groups'] = groups.append(login_group)
+                item['homedir'] = homedir
+                item['gecos'] = comment
+                item['uid'] = uid
+                item['gid'] = gid
+                item['shell'] = shell
+                self.persister.persist(self.set_response(item))
+            elif monitor is False:
+                item = {}
+                item['present'] = False
+                self.persister.unpersist(self.set_response(item))
 
             status = self.module.get_user_infos(res_id)
             response = self.set_response(status)
@@ -145,6 +186,16 @@ class UsersController(ResourcesController):
         try:
             self.logger.info("Deleting the user: %s" % res_id)
             self.module.user_del(res_id)
+
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['present'] = True
+                self.persister.persist(self.set_response(item))
+            elif monitor is False:
+                item = {}
+                self.persister.unpersist(self.set_response(item))
+
             response = self.set_response("Successfully deleted")
             self.logger.info("The user '%s' has been deleted" % res_id)
 
@@ -157,6 +208,12 @@ class UsersController(ResourcesController):
 
         return response
 
+    def sanitize_groups(self, groups):
+        group_list = []
+        if groups:
+            group_list = re.sub('\s', '', groups).split(',')
+        return group_list
+        
     def monitor(self):
         """Monitors users"""
 
@@ -167,8 +224,18 @@ class UsersController(ResourcesController):
 
         response = {}
         for state in res:
+            error = False
             res_id = state["resource_id"]
+            status = state["status"]
             with self._lock:
                 response = self.read(res_id=res_id)
-            if not response["status"] == state["status"]:
+
+            for key in status.keys():
+                if key == 'password':
+                    if status['password'] != self.module.get_pw(res_id):
+                        error = True
+                else:
+                    if response['status'].get(key) != status[key]:
+                        error = True
+            if error:
                 self._publish(res_id, state, response)

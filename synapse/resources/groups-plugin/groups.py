@@ -48,6 +48,21 @@ class GroupsController(ResourcesController):
             self.logger.info("Creating the group: %s" % res_id)
             gid = attributes.get("gid")
             self.module.group_add(res_id, gid)
+
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['present'] = True
+                item['name'] = res_id
+                if gid:
+                    item['gid'] = gid
+                self.persister.persist(self.set_response(item))
+
+            elif monitor is False:
+                item = {}
+                item['present'] = False
+                self.persister.unpersist(self.set_response(item))
+
             status = self.module.get_group_infos(res_id)
             response = self.set_response(status)
             self.logger.info("The group %s has been created" % res_id)
@@ -72,21 +87,34 @@ class GroupsController(ResourcesController):
         }
         """
         try:
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['installed'] = True
+                self.persister.persist(self.set_response(item))
+            elif monitor is False:
+                self.persister.unpersist(self.set_response({}))
+
             new_name = attributes.get("new_name")
             gid = attributes.get("gid")
 
+            status = {}
             self.logger.info("Updating the group: %s" % res_id)
-            self.module.group_mod(res_id, new_name, gid)
-            status = self.module.get_group_infos(new_name)
-            response = self.set_response(status)
-            self.logger.info("The group %s has been updated" % res_id)
+            if new_name or gid:
+                self.module.group_mod(res_id, new_name, gid)
+                status = self.module.get_group_infos(new_name)
+            else:
+                status = self.module.get_group_infos(res_id)
 
+            response = self.set_response(status)
+
+            self.logger.info("The group %s has been updated" % res_id)
 
         except ResourceException, err:
             response = self.set_response("Group Error", error="%s" % err)
 
         if 'error' in response:
-            self.logger.info('Error when creating group %s: %s'
+            self.logger.info('Error when updating group %s: %s'
                     % (res_id, response['error']))
 
         return response
@@ -120,8 +148,15 @@ class GroupsController(ResourcesController):
 
         response = {}
         for state in res:
+            error = False
+            status = state["status"]
             res_id = state["resource_id"]
             with self._lock:
                 response = self.read(res_id=res_id)
-            if not response["status"] == state["status"]:
+
+            for key in status.keys():
+                if response["status"].get(key) != status.get(key):
+                    error = True
+                    break
+            if error:
                 self._publish(res_id, state, response)

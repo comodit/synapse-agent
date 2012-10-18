@@ -9,7 +9,7 @@ class ReposController(ResourcesController):
 
     __resource__ = "repos"
 
-    def read(self, res_id=None, attributes=None):
+    def read(self, res_id=None, attributes={}):
         """
         Gets a repo definition on host.
         If id is not specified, this method retrieves all repos.
@@ -59,6 +59,18 @@ class ReposController(ResourcesController):
         response = {}
         try:
             self.module.create_repo(res_id, attributes)
+
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['present'] = True
+                item.update(attributes)
+                self.persister.persist(self.set_response(item))
+            elif monitor is False:
+                item = {}
+                item['present'] = False
+                self.persister.unpersist(self.set_response(item))
+
             status = self.module.get_repos(res_id)
             response = self.set_response(status)
 
@@ -93,6 +105,18 @@ class ReposController(ResourcesController):
 
         try:
             self.module.delete_repo(res_id, attributes)
+
+            monitor = attributes.get('monitor')
+            if monitor:
+                item = {}
+                item['present'] = True
+                item.update(attributes)
+                self.persister.persist(self.set_response(item))
+            elif monitor is False:
+                item = {}
+                item['present'] = False
+                self.persister.unpersist(self.set_response(item))
+
             if not self.module.get_repos(res_id):
                 status["present"] = False
                 response = self.set_response(status)
@@ -107,3 +131,20 @@ class ReposController(ResourcesController):
                     % (res_id, response['error']))
 
         return response
+
+    def monitor(self):
+        """Monitors repositories"""
+
+        try:
+            res = getattr(self.persister, "repos")
+        except AttributeError:
+            return
+
+        response = {}
+        for state in res:
+            res_id = state["resource_id"]
+            with self._lock:
+                response = self.read(res_id=res_id)
+            if state['status'] != response['status']:
+                self._publish(res_id, state, response)
+
