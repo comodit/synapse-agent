@@ -28,7 +28,8 @@ def get_repos(name, details=False):
     response = repos
 
     if name:
-        response = repos.get(name)
+        response = repos.get(name, {"present": False,
+                                    "name": name})
     else:
         if not details:
             response = repos.keys()

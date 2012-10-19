@@ -149,8 +149,10 @@ class ReposController(ResourcesController):
             status = state["status"]
             with self._lock:
                 response = self.read(res_id=res_id)
+
             for key in status.keys():
                 if response['status'].get(key) != status[key]:
                     error = True
+                    break
             if error:
                 self._publish(res_id, state, response)
