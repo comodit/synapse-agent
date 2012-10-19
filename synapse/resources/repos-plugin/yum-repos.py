@@ -15,11 +15,15 @@ def get_repos(name, details=False):
     for repo_file in repo_file_list:
         repo_file_path = os.path.join(repo_path, repo_file)
         config = ConfigParser.RawConfigParser()
-        config.read(repo_file_path)
-        for section in config.sections():
-            repo = dict(config.items(section))
-            repo["filename"] = repo_file_path
-            repos[section] = repo
+        try:
+            config.read(repo_file_path)
+            for section in config.sections():
+                repo = dict(config.items(section))
+                repo["filename"] = repo_file_path
+                repo["present"] = True
+                repos[section] = repo
+        except Exception:
+            repo = {'present': False}
 
     response = repos
 

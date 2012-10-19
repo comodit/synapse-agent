@@ -57,6 +57,7 @@ class ReposController(ResourcesController):
 
         status = {}
         response = {}
+        baseurl = attributes.get('baseurl')
         try:
             self.module.create_repo(res_id, attributes)
 
@@ -64,7 +65,8 @@ class ReposController(ResourcesController):
             if monitor:
                 item = {}
                 item['present'] = True
-                item.update(attributes)
+                item['baseurl'] = baseurl
+                item['name'] = res_id
                 self.persister.persist(self.set_response(item))
             elif monitor is False:
                 item = {}
@@ -142,9 +144,13 @@ class ReposController(ResourcesController):
 
         response = {}
         for state in res:
+            error = False
             res_id = state["resource_id"]
+            status = state["status"]
             with self._lock:
                 response = self.read(res_id=res_id)
-            if state['status'] != response['status']:
+            for key in status.keys():
+                if response['status'].get(key) != status[key]:
+                    error = True
+            if error:
                 self._publish(res_id, state, response)
-
