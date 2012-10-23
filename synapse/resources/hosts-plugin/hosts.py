@@ -10,35 +10,25 @@ class HostsController(ResourcesController):
     __resource__ = "hosts"
 
     def read(self, res_id=None, attributes=None):
-        self.logger.debug("Reading host informations")
-        try:
-            status = {}
+        if 'hostname' in attributes:
+            self.status['hostname'] = self.module.get_hostname()
 
-            # Gets the hostname
-            if 'hostname' in attributes:
-                status['hostname'] = self.module.get_hostname()
+        if 'mac' in attributes or 'mac_addresses' in attributes:
+            self.status['mac_addresses'] = self.module.get_mac_addresses()
 
-            if 'mac' in attributes or 'mac_addresses' in attributes:
-                status['mac_addresses'] = self.module.get_mac_addresses()
+        if 'memtotal' in attributes:
+            self.status['memtotal'] = self.module.get_memtotal()
 
-            if 'memtotal' in attributes:
-                status['memtotal'] = self.module.get_memtotal()
+        if 'ip' in attributes:
+            self.status['ip'] = self.module.get_ip_addresses()
 
-            if 'ip' in attributes:
-                status['ip'] = self.module.get_ip_addresses()
+        if 'uptime' in attributes:
+            self.status['uptime'] = self.module.get_uptime()
 
-            if 'uptime' in attributes:
-                status['uptime'] = self.module.get_uptime()
+        if 'platform' in attributes:
+            self.status['platform'] = self.module.get_platform()
 
-            if 'platform' in attributes:
-                status['platform'] = self.module.get_platform()
-
-            response = self.set_response(status)
-
-        except ResourceException, err:
-            response = self.set_response("Host Error", error=err)
-
-        return response
+        return self.status
 
     def monitor(self):
         """Sends hosts infos regularly."""
@@ -51,4 +41,4 @@ class HostsController(ResourcesController):
             pass
 
         if task:
-            self._publish_status('', task['status'])
+            self._publish_status('', task)

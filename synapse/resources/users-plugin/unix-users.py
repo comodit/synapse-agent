@@ -6,13 +6,13 @@ from synapse.syncmd import exec_cmd
 
 
 def user_exists(name):
+    res = False
     try:
-        get_user_infos(name)
+        res = get_user_infos(name).get('present')
+    except Exception:
+        pass
 
-    except ResourceException:
-        return False
-
-    return True
+    return res
 
 
 def get_user_infos(name):
@@ -101,7 +101,7 @@ def user_mod(name, password, login_group, groups, homedir, move_home,
         if homedir:
             cmd += ['--home', homedir]
         if homedir and move_home:
-            cmd += ['--move-home', move_home]
+            cmd += ['--move-home']
         if comment:
             cmd += ['--comment', comment]
         if uid:

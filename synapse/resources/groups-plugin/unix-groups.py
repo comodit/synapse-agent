@@ -4,6 +4,16 @@ from synapse.synapse_exceptions import ResourceException
 from synapse.syncmd import exec_cmd
 
 
+def exists(name):
+    res = False
+    try:
+        res = format_group_info(name).get('present', False)
+    except Exception:
+        pass
+
+    return res
+
+
 def get_group_infos(name=None):
     if not name:
         return [format_group_info(x.gr_name) for x in grp.getgrall()]
@@ -21,6 +31,7 @@ def format_group_info(name):
         d["gid"] = gr.gr_gid
     except KeyError:
         d["present"] = False
+
     return d
 
 

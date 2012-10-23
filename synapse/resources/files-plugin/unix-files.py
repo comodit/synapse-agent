@@ -1,16 +1,30 @@
-import os
-import hashlib
 import datetime
-import pwd
 import grp
+import hashlib
+import os
+import pwd
+import shutil
 
 from synapse.synapse_exceptions import ResourceException
 
 
 def exists(path):
     try:
-        open(path)
-        return True
+        return os.path.exists(path)
+    except IOError:
+        return False
+
+
+def file_exists(path):
+    try:
+        return os.path.isfile(path)
+    except IOError:
+        return False
+
+
+def folder_exists(path):
+    try:
+        return os.path.isdir(path)
     except IOError:
         return False
 
@@ -23,7 +37,6 @@ def list_dir(path):
 
 
 def get_content(path):
-    path = os.path.join("/", path)
     if not os.path.exists(path):
         raise ResourceException('File not found, sorry !')
 
@@ -34,19 +47,18 @@ def get_content(path):
 
 
 def set_content(path, content):
-    _path = os.path.join("/", path)
-
-    if not os.path.exists(_path):
+    if not os.path.exists(path):
         raise ResourceException('File not found')
 
     if content is not None:
-        with open(_path, 'w') as fd:
+        with open(path, 'w') as fd:
             fd.write(str(content))
 
 
 def md5(path, block_size=2 ** 20):
-    if not os.path.exists(path) and not os.path.isfile(path):
-        raise ResourceException('File not found')
+    if not os.path.isfile(path):
+        return None
+
     with open(path, 'r') as f:
         md5 = hashlib.md5()
         while True:
@@ -58,68 +70,63 @@ def md5(path, block_size=2 ** 20):
 
 
 def md5_str(content):
-    m = hashlib.md5()
-    m.update(content)
-    return m.hexdigest()
+    if content is not None:
+        m = hashlib.md5()
+        m.update(content)
+        return m.hexdigest()
 
 
-def create_file(id):
-    try:
-        # Recursive mkdirs if dir path is not complete
-        os.makedirs(os.path.dirname(os.path.join("/", id)))
-        update_meta(id, -1, -1, 0755)
-    except:
-        pass
+def create_file(path):
+    # Create folders if they don't exist
+    if not os.path.exists(os.path.dirname(path)):
+        create_folders(path)
 
-    # Create the file with default values if not existing
-    path = os.path.join("/", id)
+    # Create the file if it does not exist
     if not os.path.exists(path):
         open(path, 'a').close()
-        try:
-            os.chmod(path, 0644)
-            os.chown(path, 0, 0)
-        except ValueError:
-            raise
     else:
         raise ResourceException('File already exists')
 
 
-def update_meta(id, owner, group, filemode):
+def create_folders(path):
+    try:
+        # Recursive mkdirs if dir path is not complete
+        os.makedirs(path)
+    except OSError:
+        #Already exists, no prob !
+        pass
+    except Exception as err:
+        # Another problem
+        raise ResourceException('Failed when creating folders: %s' % err)
+
+
+def update_meta(path, owner, group, filemode):
+    if not os.path.exists(path):
+        raise ResourceException('This path does not exist.')
+
+    ownerid = get_owner_id(owner)
+    groupid = get_group_id(group)
+    octfilemode = int(filemode, 8)
 
     try:
-        os.makedirs(os.path.dirname(os.path.join("/", id)), 0775)
-    except:
-        pass
-    try:
-        # Create the file if not existing
-        path = os.path.join("/", id)
-        if not os.path.exists(path):
-            create_file(path)
-        # Update the file properties
-        if owner != -1:
-            owner = pwd.getpwnam(owner)[3]
-        if group != -1:
-            group = pwd.getpwnam(group)[3]
-        if filemode != -1:
-            # mod from chmod is written in base 8
-            filemode = int(filemode, 8)
-        else:
-            filemode = int(mode(path), 8)
-        try:
-            os.chmod(path, filemode)
-            os.chown(path, owner, group)
-        except ValueError:
-            raise
-    except (KeyError, ValueError, ResourceException), err:
+        os.chmod(path, octfilemode)
+        os.chown(path, ownerid, groupid)
+    except ValueError as err:
         raise ResourceException(err)
 
 
 def delete(path):
-    _path = os.path.join("/", path)
-    if not os.path.exists(_path):
+    if not os.path.exists(path):
         raise ResourceException('File not found, sorry !')
-    os.remove(_path)
+    os.remove(path)
 
+def delete_folder(path):
+    if not os.path.exists(path):
+        raise ResourceException('File not found, sorry !')
+    try:
+        shutil.rmtree(path)
+    except OSError as err:
+        raise ResourceException("Exception when removing the folder: %s" % err)
 
 def mod_time(path):
     return str(datetime.datetime.fromtimestamp(os.path.getmtime(path)))
@@ -132,30 +139,55 @@ def c_time(path):
 def owner(path):
     if not os.path.exists(path):
         raise ResourceException('File does not exist.')
+
     si = os.stat(path)
     uid = si.st_uid
     try:
-        user = pwd.getpwuid(uid)
-        return user[0]
-    except KeyError, e:
-        return "Not found: ", str(e)
+        return pwd.getpwuid(uid).pw_name
+    except KeyError as err:
+        raise ResourceException(err)
+
+def get_owner_id(name):
+    try:
+        return pwd.getpwnam(name).pw_uid
+    except KeyError as err:
+        raise ResourceException(err)
 
 
 def group(path):
     if not os.path.exists(path):
         raise ResourceException('File does not exist.')
+
     si = os.stat(path)
     gid = si.st_gid
     try:
-        _group = grp.getgrgid(gid)
-        return _group[0]
-    except KeyError, e:
-        return "Not found: ", str(e)
+        return grp.getgrgid(gid).gr_name
+    except KeyError as err:
+        raise ResourceException(err)
+
+
+def get_group_id(name):
+    try:
+        return grp.getgrnam(name).gr_gid
+    except KeyError as err:
+        raise ResourceException(err)
 
 
 def mode(path):
     if not os.path.exists(path):
         raise ResourceException('File does not exist.')
+
     si = os.stat(path)
     _mode = "%o" % si.st_mode
     return _mode[2:]
+
+
+def get_default_mode(path):
+    current_umask = os.umask(0)
+    os.umask(current_umask)
+    _mode = 0644
+    if os.path.isdir(path):
+        _mode = 0777 ^ current_umask
+    elif os.path.isfile(path):
+        _mode = 0666 ^ current_umask
+    return oct(_mode)

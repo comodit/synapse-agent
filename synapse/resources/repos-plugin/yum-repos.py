@@ -82,7 +82,7 @@ def create_repo(name, attributes):
     # If it exists, get the filename in which the repo is defined
     # If not, check if a filename is user provided
     # If no filename is provided, create one based on the repo name
-    if repo:
+    if repo.get('present'):
         filename = repo.get("filename")
     elif attributes.get("filename"):
         filename = attributes["filename"]
@@ -116,8 +116,7 @@ def delete_repo(name, attributes):
     config_parser = ConfigParser.RawConfigParser()
     repo = get_repos(name)
 
-    if repo:
-
+    if repo.get('present'):
         filename = repo.get("filename")
         repo_file_path = os.path.join(repo_path, filename)
         config_parser.read(repo_file_path)
@@ -131,6 +130,3 @@ def delete_repo(name, attributes):
         config_parser.read(repo_file_path)
         if not len(config_parser.sections()):
             os.remove(repo_file_path)
-
-    else:
-        raise ResourceException("Repo not found")
