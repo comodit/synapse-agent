@@ -17,9 +17,17 @@ class FilesController(ResourcesController):
     def read(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
 
-        if self.module.folder_exists(res_id):
-            self.status['filelist'] = self.module.list_dir(res_id)
-            self.status['type'] = 'folder'
+        if self.module.is_dir(res_id):
+            self.status['type'] = 'directory'
+
+        elif self.module.is_file(res_id):
+            self.status['type'] = 'file'
+            if attributes.get('get_content'):
+                content = self.module.get_content(res_id)
+                self.status['content'] = content
+            if attributes.get('md5'):
+                md5 = self.module.md5(res_id)
+                self.status['md5'] = md5
 
         self.status['owner'] = self.module.owner(res_id)
         self.status['group'] = self.module.group(res_id)
@@ -27,13 +35,6 @@ class FilesController(ResourcesController):
         self.status['mod_time'] = self.module.mod_time(res_id)
         self.status['c_time'] = self.module.c_time(res_id)
         self.status['present'] = True
-
-        if attributes.get('get_content'):
-            content = self.module.get_content(res_id)
-            self.status['content'] = content
-        if attributes.get('md5'):
-            md5 = self.module.md5(res_id)
-            self.status['md5'] = md5
 
         return self.status
 
@@ -52,24 +53,29 @@ class FilesController(ResourcesController):
         owner = self._get_owner(res_id, attributes)
         group = self._get_group(res_id, attributes)
         mode = self._get_mode(res_id, attributes)
-        content = self._get_content(attributes)
+        content = None
+        if res_type == 'file':
+            content = self._get_content(attributes)
         get_content = attributes.get('get_content')
 
         self.comply(owner=owner,
                     group=group,
                     mode=mode,
                     mod_time = str(datetime.now()),
-                    c_dime = str(datetime.now()),
+                    c_time = str(datetime.now()),
                     present=True,
+                    type=res_type,
                     md5=self.module.md5_str(content),
                     monitor=attributes.get('monitor'))
 
         # Try to create the folder.
-        if res_type == 'directory' and not self.module.folder_exists(res_id):
+        if res_type == 'directory' and not self.module.exists(res_id):
             self.module.create_folders(res_id)
         # or the file.
-        elif res_type == 'file' and not self.module.file_exists(res_id):
+        elif res_type == 'file' and not self.module.exists(res_id):
             self.module.create_file(res_id)
+
+        attributes = {}
 
         # Update meta of given file
         self.module.update_meta(res_id, owner, group, mode)
@@ -78,12 +84,10 @@ class FilesController(ResourcesController):
         if res_type == 'file':
             self.module.set_content(res_id, content)
 
-        # Build the response
-        attributes = {}
-        attributes['md5'] = True
+            attributes['md5'] = True
 
-        if get_content:
-            attributes['get_content'] = True
+            if get_content:
+                attributes['get_content'] = True
 
         return self.read(res_id=res_id, attributes=attributes)
 

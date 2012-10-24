@@ -15,14 +15,13 @@ def exists(path):
         return False
 
 
-def file_exists(path):
+def is_file(path):
     try:
         return os.path.isfile(path)
     except IOError:
         return False
 
-
-def folder_exists(path):
+def is_dir(path):
     try:
         return os.path.isdir(path)
     except IOError:
@@ -179,7 +178,7 @@ def mode(path):
 
     si = os.stat(path)
     _mode = "%o" % si.st_mode
-    return _mode[2:]
+    return _mode[-4:]
 
 
 def get_default_mode(path):
