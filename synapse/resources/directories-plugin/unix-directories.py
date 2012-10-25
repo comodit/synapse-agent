@@ -23,7 +23,7 @@ def is_dir(path):
 
 def list_dir(path):
     if not os.path.exists(path):
-        raise ResourceException("Folder not found, sorry !")
+        raise ResourceException("Directory not found, sorry !")
 
     return os.listdir(path)
 
@@ -57,7 +57,7 @@ def update_meta(path, owner, group, filemode):
 
 def delete_folder(path):
     if not os.path.exists(path):
-        raise ResourceException('File not found, sorry !')
+        raise ResourceException("Directory doesn't exist")
     try:
         shutil.rmtree(path)
     except OSError as err:
@@ -74,7 +74,7 @@ def c_time(path):
 
 def owner(path):
     if not os.path.exists(path):
-        raise ResourceException('File does not exist.')
+        raise ResourceException('Directory does not exist.')
 
     si = os.stat(path)
     uid = si.st_uid
@@ -93,7 +93,7 @@ def get_owner_id(name):
 
 def group(path):
     if not os.path.exists(path):
-        raise ResourceException('File does not exist.')
+        raise ResourceException('Directory does not exist.')
 
     si = os.stat(path)
     gid = si.st_gid
@@ -112,7 +112,7 @@ def get_group_id(name):
 
 def mode(path):
     if not os.path.exists(path):
-        raise ResourceException('File does not exist.')
+        raise ResourceException('Directory does not exist.')
 
     si = os.stat(path)
     _mode = "%o" % si.st_mode

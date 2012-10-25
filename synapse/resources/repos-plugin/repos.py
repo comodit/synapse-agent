@@ -1,3 +1,4 @@
+from synapse.synapse_exceptions import ResourceException
 from synapse.resources.resources import ResourcesController
 from synapse.logger import logger
 
@@ -41,7 +42,10 @@ class ReposController(ResourcesController):
             res_id = state["resource_id"]
             res_status = state["status"]
             with self._lock:
-                self.response = self.read(res_id=res_id)
+                try:
+                    self.response = self.read(res_id=res_id)
+                except ResourceException as err:
+                    self.logger.error(err)
 
             for key in res_status.keys():
                 if self.response.get(key) != res_status[key]:

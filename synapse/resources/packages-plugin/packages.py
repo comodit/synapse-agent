@@ -1,3 +1,4 @@
+from synapse.synapse_exceptions import ResourceException
 from synapse.resources.resources import ResourcesController
 from synapse.logger import logger
 
@@ -56,6 +57,10 @@ class PackagesController(ResourcesController):
         for state in res:
             res_id = state["resource_id"]
             with self._lock:
-                self.response = self.read(res_id=res_id)
+                try:
+                    self.response = self.read(res_id=res_id)
+                except ResourceException as err:
+                    self.logger.error(err)
+
                 if not self.response == state["status"]:
                     self._publish(res_id, state, self.response)

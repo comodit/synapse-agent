@@ -77,7 +77,7 @@ def create_file(path):
     if not os.path.exists(path):
         open(path, 'a').close()
     else:
-        raise ResourceException('File already exists')
+        pass
 
 
 def create_folders(path):

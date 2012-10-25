@@ -17,19 +17,20 @@ class FilesController(ResourcesController):
     def read(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
 
-        if attributes.get('get_content'):
-            content = self.module.get_content(res_id)
-            self.status['content'] = content
-        if attributes.get('md5'):
-            md5 = self.module.md5(res_id)
-            self.status['md5'] = md5
-
-        self.status['owner'] = self.module.owner(res_id)
-        self.status['group'] = self.module.group(res_id)
-        self.status['mode'] = self.module.mode(res_id)
-        self.status['mod_time'] = self.module.mod_time(res_id)
-        self.status['c_time'] = self.module.c_time(res_id)
-        self.status['present'] = self.module.is_file(res_id)
+        present = self.module.is_file(res_id)
+        self.status['present'] = present
+        if present:
+            if attributes.get('get_content'):
+                content = self.module.get_content(res_id)
+                self.status['content'] = content
+            if attributes.get('md5'):
+                md5 = self.module.md5(res_id)
+                self.status['md5'] = md5
+            self.status['owner'] = self.module.owner(res_id)
+            self.status['group'] = self.module.group(res_id)
+            self.status['mode'] = self.module.mode(res_id)
+            self.status['mod_time'] = self.module.mod_time(res_id)
+            self.status['c_time'] = self.module.c_time(res_id)
 
         return self.status
 
@@ -111,7 +112,10 @@ class FilesController(ResourcesController):
             # Get the file path and its current state on the system
             res_id = state["resource_id"]
             with self._lock:
-                self.response = self.read(res_id=res_id)
+                try:
+                    self.response = self.read(res_id=res_id)
+                except ResourceException as err:
+                    self.logger.error(err)
 
             wanted = state["status"]
             current = self.response
