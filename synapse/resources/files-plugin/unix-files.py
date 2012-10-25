@@ -71,13 +71,11 @@ def md5_str(content):
 def create_file(path):
     # Create folders if they don't exist
     if not os.path.exists(os.path.dirname(path)):
-        create_folders(path)
+        create_folders(os.path.dirname(path))
 
     # Create the file if it does not exist
     if not os.path.exists(path):
         open(path, 'a').close()
-    else:
-        pass
 
 
 def create_folders(path):
