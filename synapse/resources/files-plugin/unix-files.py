@@ -3,7 +3,6 @@ import grp
 import hashlib
 import os
 import pwd
-import shutil
 
 from synapse.synapse_exceptions import ResourceException
 
@@ -18,12 +17,6 @@ def exists(path):
 def is_file(path):
     try:
         return os.path.isfile(path)
-    except IOError:
-        return False
-
-def is_dir(path):
-    try:
-        return os.path.isdir(path)
     except IOError:
         return False
 
@@ -119,13 +112,6 @@ def delete(path):
         raise ResourceException('File not found, sorry !')
     os.remove(path)
 
-def delete_folder(path):
-    if not os.path.exists(path):
-        raise ResourceException('File not found, sorry !')
-    try:
-        shutil.rmtree(path)
-    except OSError as err:
-        raise ResourceException("Exception when removing the folder: %s" % err)
 
 def mod_time(path):
     return str(datetime.datetime.fromtimestamp(os.path.getmtime(path)))
@@ -185,8 +171,6 @@ def get_default_mode(path):
     current_umask = os.umask(0)
     os.umask(current_umask)
     _mode = 0644
-    if os.path.isdir(path):
-        _mode = 0777 ^ current_umask
-    elif os.path.isfile(path):
+    if os.path.isfile(path):
         _mode = 0666 ^ current_umask
     return oct(_mode)

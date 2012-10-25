@@ -59,7 +59,9 @@ class FilesController(ResourcesController):
                     md5=self.module.md5_str(content),
                     monitor=attributes.get('monitor'))
 
-        self.module.create_file(res_id)
+
+        if not self.module.exists(res_id):
+            self.module.create_file(res_id)
 
         attributes = {}
 
