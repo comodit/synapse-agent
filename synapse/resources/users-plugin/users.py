@@ -15,10 +15,10 @@ class UsersController(ResourcesController):
 
     def create(self, res_id=None, attributes=None):
         password = attributes.get('password')
-        login_group = attributes.get('login_group') or res_id
+        login_group = attributes.get('login_group')
         groups = self.sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir') or '/home/%s' % res_id
-        comment = attributes.get('full_name') or ''
+        comment = attributes.get('full_name')
         uid = attributes.get('uid')
         gid = attributes.get('gid')
         shell = attributes.get('shell')

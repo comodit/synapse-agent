@@ -39,7 +39,7 @@ def get_content(path):
 
 
 def set_content(path, content):
-    if not os.path.exists(path):
+    if not is_file(path):
         raise ResourceException('File not found')
 
     if content is not None:
