@@ -9,6 +9,15 @@ from synapse.config import config
 from synapse.logger import logger
 
 
+synapse_version = "Undefined"
+
+try:
+    import synapse.version as version_mod
+    if version_mod.VERSION:
+        synapse_version = version_mod.VERSION
+except (ImportError, AttributeError):
+    pass
+
 @logger
 class ResourcesController(object):
     """This class is the mother of all resources classes.
@@ -187,7 +196,8 @@ class ResourcesController(object):
             'uuid': self.uuid,
             'collection': self.__resource__,
             'status': state,
-            'status_message': True
+            'status_message': True,
+            'version': synapse_version
         }
 
         self.publish_queue.put((headers, status))
