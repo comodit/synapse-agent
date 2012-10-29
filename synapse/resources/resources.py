@@ -45,6 +45,9 @@ class ResourcesController(object):
         self.res_id = None
         self.scheduler = None
         self.persister = None
+
+        # This queue is injected by the resource locator at plugin
+        # instantiation
         self.publish_queue = None
 
         self.status = {}
@@ -92,7 +95,7 @@ class ResourcesController(object):
 
         if action != 'ping':
             msg = "[%s] %s" % (self.__resource__.upper(),
-                                    self.action_map[action])
+                               self.action_map[action])
             if self.res_id:
                 msg += " '%s'" % self.res_id
             if params:
@@ -197,10 +200,20 @@ class ResourcesController(object):
             'collection': self.__resource__,
             'status': state,
             'status_message': True,
-            'version': synapse_version
+            'msg_type': 'status'
         }
 
         self.publish_queue.put((headers, status))
+
+    def _publish_compliance_ok(self):
+        status = {
+            'id': self.res_id,
+            'uuid': self.uuid,
+            'collection': self.__resource__,
+            'msg_type': 'compliance_ok'
+        }
+
+        self.publish_queue.put((self._set_headers, status))
 
     def _set_headers(self):
         return {
@@ -219,30 +232,22 @@ class ResourcesController(object):
 
         headers = self._set_headers()
 
-        compliance = {
-            'id': res_id,
-            'uuid': self.uuid,
-            'collection': state['collection'],
-            'expected_state': state['status'],
-            'current_state': response,
-            'msg_type': 'compliance',
-            'timestamp': timestamp
-        }
+        compliance = {'id': res_id,
+                      'uuid': self.uuid,
+                      'collection': state['collection'],
+                      'expected_state': state['status'],
+                      'current_state': response,
+                      'msg_type': 'compliance',
+                      'timestamp': timestamp}
 
-        try:
-            last_alert = state.get("last_alert")
-            if last_alert:
-                delta = datetime.datetime.now() - last_alert
-                if delta > datetime.timedelta(seconds=self.alert_interval):
-                    self._update_last_alert(state)
-                    self.publish_queue.put((headers, compliance))
-            else:
-                self._update_last_alert(state)
+        last_alert = state.get("last_alert")
+        if last_alert:
+            delta = datetime.datetime.now() - last_alert
+            if delta > datetime.timedelta(seconds=self.alert_interval):
+                state['last_alert'] = datetime.datetime.now()
+                self.persister.persist(state, update_alert=True)
                 self.publish_queue.put((headers, compliance))
-        except Full:
-            pass
-
-    def _update_last_alert(self, state):
-        state.update(dict(last_alert=datetime.datetime.now()))
-        self.persister.persist(state, update_alert=True)
-        return state
+        else:
+            state['last_alert'] = datetime.datetime.now()
+            self.persister.persist(state, update_alert=True)
+            self.publish_queue.put((headers, compliance))

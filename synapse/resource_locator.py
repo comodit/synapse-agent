@@ -35,8 +35,7 @@ class ResourceLocator(object):
             else:
                 return registry
         except KeyError:
-            raise ResourceException(
-                    "The resource [{0}] does not exist".format(name))
+            raise ResourceException("The resource [%s] does not exist" % name)
 
     def load_packages(self, paths):
         ignored = self.get_ignored()

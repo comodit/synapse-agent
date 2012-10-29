@@ -64,3 +64,5 @@ class PackagesController(ResourcesController):
 
                 if not self.response == state["status"]:
                     self._publish(res_id, state, self.response)
+                else:
+                    self._publish_compliance_ok()
