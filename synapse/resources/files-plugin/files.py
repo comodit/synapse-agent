@@ -18,6 +18,7 @@ class FilesController(ResourcesController):
         self.check_mandatory(res_id)
 
         present = self.module.is_file(res_id)
+        self.status['path'] = res_id
         self.status['present'] = present
         if present:
             if attributes.get('get_content'):
@@ -49,9 +50,9 @@ class FilesController(ResourcesController):
         group = self._get_group(res_id, attributes)
         mode = self._get_mode(res_id, attributes)
         content = self._get_content(attributes)
-        get_content = attributes.get('get_content')
 
-        self.comply(owner=owner,
+        self.comply(path=res_id,
+                    owner=owner,
                     group=group,
                     mode=mode,
                     mod_time = str(datetime.now()),
@@ -60,22 +61,14 @@ class FilesController(ResourcesController):
                     md5=self.module.md5_str(content),
                     monitor=attributes.get('monitor'))
 
-
         if not self.module.exists(res_id):
             self.module.create_file(res_id)
-
-        attributes = {}
 
         # Update meta of given file
         self.module.update_meta(res_id, owner, group, mode)
 
         # Set the content in file only if it's a file
         self.module.set_content(res_id, content)
-
-        attributes['md5'] = True
-
-        if get_content:
-            attributes['get_content'] = True
 
         return self.read(res_id=res_id, attributes=attributes)
 
@@ -98,60 +91,29 @@ class FilesController(ResourcesController):
 
         return self.response
 
-    def monitor(self):
-        """Monitors files"""
+    def monitor(self, persisted_state, current_state):
+        compliant = True
 
-        # Get the list of persisted files states.
-        try:
-            res = getattr(self.persister, "files")
-        except AttributeError:
-            return
+        # First, compare the present flag. If it differs, no need to go
+        # further, there's a compliance issue.
+        # Check the next file state
+        if persisted_state.get("present") != current_state.get("present"):
+            compliant = False
+            return compliant
 
-        # For every file state
-        for state in res:
-            # Get the file path and its current state on the system
-            res_id = state["resource_id"]
-            with self._lock:
-                try:
-                    self.response = self.read(res_id=res_id)
-                except ResourceException as err:
-                    self.logger.error(err)
+        # Secondly, compare files attributes
+        for attr in ("name", "owner", "group", "mode"):
+            if persisted_state.get(attr) != current_state.get(attr):
+                compliant = False
+                break
 
-            wanted = state["status"]
-            current = self.response
-            change_detected = False
+        # Then compare modification times. If different, check md5sum
+        if persisted_state.get("mod_time") != current_state.get("mod_time"):
+            current_state_md5 = self.module.md5(persisted_state['path'])
+            if current_state_md5 != persisted_state.get("md5"):
+                compliant = False
 
-            # First, compare the present flag. If it differs, no need to go
-            # further, there's a compliance issue.
-            # Check the next file state
-            if wanted.get("present") != current.get("present"):
-                self._publish(res_id, state, self.response)
-                continue
-
-            # Secondly, compare files attributes
-            for attr in ("name", "owner", "group", "mode"):
-                if wanted.get(attr) != current.get(attr):
-                    change_detected = True
-                    break
-
-            # Then compare modification times. If different, check md5sum
-            if wanted.get("mod_time") != current.get("mod_time"):
-                current = self.response
-                try:
-                    with self._lock:
-                        current_md5 = self.module.md5(res_id)
-                except ResourceException:
-                    pass
-                if current_md5 != wanted.get("md5"):
-                    change_detected = True
-                else:
-                    # If md5sum don't differ, persist new mod_time.
-                    state['status']['mod_time'] = current['mod_time']
-                    self.persister.persist(state)
-
-            # Publish if somethings detected
-            if change_detected:
-                self._publish(res_id, state, self.response)
+        return compliant
 
     def _get_owner(self, path, attributes):
         # Default, get the current user. getpass is portable Unix/Windows
@@ -218,4 +180,4 @@ class FilesController(ResourcesController):
             except TypeError, err:
                 raise ResourceException("Can't b64decode: %s" % err)
 
-        return content
+        return content or ''

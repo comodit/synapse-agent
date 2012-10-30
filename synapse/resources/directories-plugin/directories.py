@@ -63,43 +63,23 @@ class DirectoriesController(ResourcesController):
 
         return self.response
 
-    def monitor(self):
-        # Get the list of persisted files states.
-        try:
-            res = getattr(self.persister, "directories")
-        except AttributeError:
-            return
+    def monitor(self, persisted_state, current_state):
+        compliant = True
 
-        # For every file state
-        for state in res:
-            # Get the file path and its current state on the system
-            res_id = state["resource_id"]
-            with self._lock:
-                try:
-                    self.response = self.read(res_id=res_id)
-                except ResourceException as err:
-                    self.logger.error(err)
+        # First, compare the present flag. If it differs, no need to go
+        # further, there's a compliance issue.
+        # Check the next path state
+        if persisted_state.get("present") != current_state.get("present"):
+            compliant = False
+            return compliant
 
-            wanted = state["status"]
-            current = self.response
-            change_detected = False
+        # Secondly, compare path attributes
+        for attr in ("name", "owner", "group", "mode"):
+            if persisted_state.get(attr) != current_state.get(attr):
+                compliant = False
+                break
 
-            # First, compare the present flag. If it differs, no need to go
-            # further, there's a compliance issue.
-            # Check the next file state
-            if wanted.get("present") != current.get("present"):
-                self._publish(res_id, state, self.response)
-                continue
-
-            # Secondly, compare files attributes
-            for attr in ("name", "owner", "group", "mode"):
-                if wanted.get(attr) != current.get(attr):
-                    change_detected = True
-                    break
-
-            # Publish if somethings detected
-            if change_detected:
-                self._publish(res_id, state, self.response)
+        return compliant
 
     def _get_owner(self, path, attributes):
         # Default, get the current user. getpass is portable Unix/Windows

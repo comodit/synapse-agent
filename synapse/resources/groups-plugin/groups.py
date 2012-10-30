@@ -42,25 +42,12 @@ class GroupsController(ResourcesController):
         self.comply(monitor=False)
         return self.module.get_group_infos(res_id)
 
-    def monitor(self):
-        try:
-            res = getattr(self.persister, "groups")
-        except AttributeError:
-            return
+    def monitor(self, persisted_state, current_state):
+        compliant = True
 
-        for state in res:
-            error = False
-            res_status = state["status"]
-            res_id = state["resource_id"]
-            with self._lock:
-                try:
-                    self.response = self.read(res_id=res_id)
-                except ResourceException as err:
-                    self.logger.error(err)
+        for key in persisted_state.keys():
+            if current_state.get(key) != persisted_state.get(key):
+                compliant = False
+                break
 
-            for key in res_status.keys():
-                if self.response.get(key) != res_status.get(key):
-                    error = True
-                    break
-            if error:
-                self._publish(res_id, state, self.response)
+        return compliant

@@ -68,22 +68,12 @@ class ServicesController(ResourcesController):
     def delete(self, res_id=None, attributes=None):
         return {}
 
-    def monitor(self):
-        """Monitors services"""
+    def monitor(self, persisted_state, current_state):
+        compliant = True
 
-        try:
-            res = getattr(self.persister, "services")
-        except AttributeError:
-            return
+        for key in persisted_state.keys():
+            if current_state.get(key) != persisted_state.get(key):
+                compliant = False
+                break
 
-        for state in res:
-            res_id = state["resource_id"]
-            with self._lock:
-                try:
-                    self.response = self.read(res_id=res_id)
-                except ResourceException as err:
-                    self.logger.error(err)
-                if not self.response == state["status"]:
-                    self._publish(res_id, state, self.response)
-                else:
-                    self._publish_compliance_ok()
+        return compliant

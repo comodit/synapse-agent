@@ -16,6 +16,8 @@ class Persistence(object):
         if not os.path.exists(self.path):
             raise Exception('Persistence path does not exist.')
 
+        self.resources_list = []
+
         file_list = os.listdir(self.path)
         for fname in file_list:
             if fname.endswith('.pkl'):
@@ -24,6 +26,7 @@ class Persistence(object):
                     path = os.path.join(self.path, fname)
                     with open(path, 'rb') as fd:
                         setattr(self, collection, pickle.load(fd))
+                        self.resources_list.append(collection)
                     self.logger.debug('Loaded persisted <{0}>'
                                       ' collection'.format(collection))
                 except (PickleError, PicklingError), err:
@@ -31,10 +34,7 @@ class Persistence(object):
                 except (IOError, EOFError):
                     pass
 
-    def persist(self, resource, update_alert=False):
-        if resource.get('error', '') != '':
-            return None
-
+    def persist(self, resource):
         collection = resource['collection']
         resource_id = resource['resource_id']
         try:
@@ -45,11 +45,6 @@ class Persistence(object):
                 if len(indexes) > 1:
                     data = list(set(data))
                 data[indexes[0]].update(resource)
-                if not update_alert:
-                    try:
-                        del data[indexes[0]]['last_alert']
-                    except KeyError:
-                        pass
             elif len(indexes) == 0:
                 data.append(resource)
 
@@ -62,12 +57,8 @@ class Persistence(object):
             with open(path, 'wb') as fd:
                 os.chmod(path, int('0600', 8))
                 pickle.dump(getattr(self, collection), fd)
-            self.logger.debug('%s status has been persisted.' % collection)
 
     def unpersist(self, resource):
-        if resource.get('error', '') != '':
-            return None
-
         collection = resource['collection']
         resource_id = resource['resource_id']
         try:

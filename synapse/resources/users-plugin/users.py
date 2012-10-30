@@ -26,7 +26,8 @@ class UsersController(ResourcesController):
         self.module.user_add(res_id, password, login_group, groups, 
                              homedir, comment, uid, gid, shell)
 
-        self.comply(present=True,
+        self.comply(name=res_id,
+                    present=True,
                     password=self.module.get_pw(res_id),
                     groups=groups.append(login_group),
                     homedir=homedir,
@@ -54,7 +55,8 @@ class UsersController(ResourcesController):
             self.module.user_mod(res_id, password, login_group, groups,
                                  homedir, move_home, comment, uid, gid, shell)
 
-            self.comply(present=True,
+            self.comply(name=res_id,
+                        present=True,
                         password=self.module.get_pw(res_id),
                         groups=groups.append(login_group),
                         homedir=homedir,
@@ -83,28 +85,16 @@ class UsersController(ResourcesController):
             group_list = re.sub('\s', '', groups).split(',')
         return group_list
         
-    def monitor(self):
-        try:
-            res = getattr(self.persister, "users")
-        except AttributeError:
-            return
+    def monitor(self, persisted_state, current_state):
+        compliant = True
+        name = persisted_state.get('name')
 
-        for state in res:
-            error = False
-            res_id = state["resource_id"]
-            res_status = state["status"]
-            with self._lock:
-                try:
-                    self.response = self.read(res_id=res_id)
-                except ResourceException as err:
-                    self.logger.error(err)
+        for key in persisted_state.keys():
+            if key == 'password':
+                if persisted_state['password'] != self.module.get_pw(name):
+                    compliant = False
+            else:
+                if current_state.get(key) != persisted_state[key]:
+                    compliant = False
 
-            for key in res_status.keys():
-                if key == 'password':
-                    if res_status['password'] != self.module.get_pw(res_id):
-                        error = True
-                else:
-                    if self.response.get(key) != res_status[key]:
-                        error = True
-            if error:
-                self._publish(res_id, state, self.response)
+        return compliant

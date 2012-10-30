@@ -2,8 +2,6 @@ import time
 import threading
 import datetime
 
-from Queue import Full
-
 from synapse.synapse_exceptions import ResourceException
 from synapse.config import config
 from synapse.logger import logger
@@ -45,6 +43,8 @@ class ResourcesController(object):
         self.res_id = None
         self.scheduler = None
         self.persister = None
+        
+        self.last_alerts = {}
 
         # This queue is injected by the resource locator at plugin
         # instantiation
@@ -122,7 +122,6 @@ class ResourcesController(object):
 
             except ResourceException, err:
                 self.response = self.set_response(error='%s' % err)
-
                 self.logger.info("[%s] %s '%s': ERROR [%s]" %
                                  (self.__resource__.upper(),
                                   action.capitalize(),
@@ -152,7 +151,8 @@ class ResourcesController(object):
             'uuid': self.uuid,
             'resource_id': self.res_id,
             'status': resp,
-            'collection': self.__resource__
+            'collection': self.__resource__,
+            'msg_type': 'response'
         }
 
         for key in kwargs:
@@ -165,27 +165,93 @@ class ResourcesController(object):
         if self.scheduler:
             try:
                 interval = self._get_monitor_interval()
-                self.scheduler.add_job(self.monitor, interval)
+                self.scheduler.add_job(self.monitor_manager, interval)
+                self.scheduler.add_job(self.check_compliance, interval)
+                if self.__resource__ == 'hosts':
+                    self.scheduler.add_job(self.monitor, interval)
+
             except NotImplementedError:
                 pass
 
-    def comply(self, monitor=True, **kwargs):
+    def comply(self, res_id=None, current_status=None, monitor=True, **kwargs):
         if monitor:
-            status = {}
+            # Retrieve the persisted status
+            status = self.find(self.__resource__, res_id)
+
+            # Update persisted status with additional arguments
             for key in kwargs:
                 if kwargs[key] is not None:
                     status[key] = kwargs[key]
-            self.persister.persist(self.set_response(status))
+
+            # Set last compliant, last not compliant in status
+            compliant = status.get('compliant')
+            if compliant:
+                status['last_compliant'] = datetime.datetime.now()
+            elif compliant is False:
+                status['last_not_compliant'] = datetime.datetime.now()
+
+            # Update current status if it's provided
+            response = self.set_response(status)
+            if current_status:
+                response.update({'current_status': current_status})
+
+            # Persist the response
+            self.persister.persist(response)
+
+        # If monitor is set to False, unpersist the resource
         elif monitor is False:
             self.persister.unpersist(self.set_response())
 
+    def find(self, collection, res_id):
+        result = {}
+        try:
+            res_list = getattr(self.persister, self.__resource__)
+            for item in res_list:
+                if item.get('resource_id') == res_id:
+                    result = item
+        except AttributeError:
+            pass
+        
+        return result
 
     def check_mandatory(self, *args):
         for arg in args:
             if not arg:
                 raise ResourceException("Please provide ID")
 
-    def monitor(self):
+    def monitor_manager(self):
+        try:
+            persisted_list = getattr(self.persister, self.__resource__)
+            for item in persisted_list:
+                current_state = {}
+                persisted_state = item['status']
+                with self._lock:
+                    try:
+                        current_state = self.read(res_id=item['resource_id'])
+                    except ResourceException as err:
+                        self.logger.error(err)
+
+                compliant = self.monitor(persisted_state, current_state)
+
+                if compliant != item.get('compliant'):
+                    item['back_to_compliance'] = True
+                else:
+                    item['back_to_compliance'] = False
+
+                # Build / update the dict to be persisted
+                item['current_status'] = current_state
+                item['compliant'] = compliant
+                if compliant:
+                    item['last_compliant'] = datetime.datetime.now()
+                elif compliant is False:
+                    item['last_not_compliant'] = datetime.datetime.now()
+
+                self.persister.persist(item)
+
+        except AttributeError:
+            pass
+        
+    def monitor(self, state):
         raise NotImplementedError('%s monitoring not implemented'
                                   % self.__resource__)
 
@@ -194,34 +260,59 @@ class ResourcesController(object):
             return
 
         headers = self._set_headers()
-        status = {
-            'id': res_id,
-            'uuid': self.uuid,
-            'collection': self.__resource__,
-            'status': state,
-            'status_message': True,
-            'msg_type': 'status'
-        }
+        status = {'id': res_id,
+                  'uuid': self.uuid,
+                  'collection': self.__resource__,
+                  'status': state,
+                  'status_message': True,
+                  'msg_type': 'status',
+                  'version': synapse_version}
 
         self.publish_queue.put((headers, status))
 
-    def _publish_compliance_ok(self):
-        status = {
-            'id': self.res_id,
-            'uuid': self.uuid,
-            'collection': self.__resource__,
-            'msg_type': 'compliance_ok'
-        }
-
-        self.publish_queue.put((self._set_headers, status))
-
     def _set_headers(self):
-        return {
-            'headers': {'reply_exchange': self.status_exchange},
-            'routing_key': self.compliance_routing_key
-        }
+        return {'headers': {'reply_exchange': self.status_exchange},
+                'routing_key': self.compliance_routing_key}
 
-    def _publish(self, res_id, state, response):
+    def check_compliance(self):
+        try:
+            res = getattr(self.persister, self.__resource__)
+        except AttributeError:
+            return
+
+        for state in res:
+            lc = state.get('last_compliant')
+            lnc = state.get('last_not_compliant')
+            compliant = state.get('compliant')
+
+            # Last compliant, last not compliant and compliant must be defined
+            if lnc is None:
+                continue
+
+            elif lc is None and lnc is not None:
+                self._publish_compliance(state['resource_id'], state,
+                                     state['current_status'],
+                                     last_alert=state.get('last_alert'),
+                                     compliant=compliant,
+                                     b2c=state.get('back_to_compliance'))
+                continue
+            
+            if lc > lnc:
+                if state.get('back_to_compliance'):
+                    self._publish_compliance(state['resource_id'], state,
+                                         state['current_status'],
+                                         last_alert=state.get('last_alert'),
+                                         compliant=compliant, 
+                                         b2c=True)
+
+            elif lc < lnc:
+                self._publish_compliance(state['resource_id'], state,
+                                         state['current_status'],
+                                         last_alert=state.get('last_alert'),
+                                         compliant=compliant)
+
+    def _publish_compliance(self, res_id, state, response, last_alert=None,
+                            compliant=None, b2c=False):
         """When a state change is detected, this method publish a message to
         the transport layer"""
 
@@ -231,23 +322,23 @@ class ResourcesController(object):
         timestamp = time.strftime('%d/%m/%y %H:%M:%S', time.localtime())
 
         headers = self._set_headers()
+        msg_type = 'compliance_ok' if compliant else 'compliance_error'
 
         compliance = {'id': res_id,
                       'uuid': self.uuid,
                       'collection': state['collection'],
                       'expected_state': state['status'],
                       'current_state': response,
-                      'msg_type': 'compliance',
+                      'msg_type': msg_type,
                       'timestamp': timestamp}
 
-        last_alert = state.get("last_alert")
         if last_alert:
             delta = datetime.datetime.now() - last_alert
-            if delta > datetime.timedelta(seconds=self.alert_interval):
+            if delta > datetime.timedelta(seconds=self.alert_interval) or b2c:
                 state['last_alert'] = datetime.datetime.now()
-                self.persister.persist(state, update_alert=True)
+                self.persister.persist(state)
                 self.publish_queue.put((headers, compliance))
         else:
             state['last_alert'] = datetime.datetime.now()
-            self.persister.persist(state, update_alert=True)
+            self.persister.persist(state)
             self.publish_queue.put((headers, compliance))

@@ -31,25 +31,12 @@ class ReposController(ResourcesController):
 
         return self.module.get_repos(res_id)
 
-    def monitor(self):
-        try:
-            res = getattr(self.persister, "repos")
-        except AttributeError:
-            return
+    def monitor(self, persisted_state, current_state):
+        compliant = True
 
-        for state in res:
-            error = False
-            res_id = state["resource_id"]
-            res_status = state["status"]
-            with self._lock:
-                try:
-                    self.response = self.read(res_id=res_id)
-                except ResourceException as err:
-                    self.logger.error(err)
+        for key in persisted_state.keys():
+            if current_state.get(key) != persisted_state[key]:
+                compliant = False
+                break
 
-            for key in res_status.keys():
-                if self.response.get(key) != res_status[key]:
-                    error = True
-                    break
-            if error:
-                self._publish(res_id, state, self.response)
+        return compliant
