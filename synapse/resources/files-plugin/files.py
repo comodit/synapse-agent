@@ -97,20 +97,30 @@ class FilesController(ResourcesController):
         # First, compare the present flag. If it differs, no need to go
         # further, there's a compliance issue.
         # Check the next file state
-        if persisted_state.get("present") != current_state.get("present"):
+        if persisted_state.get('present') != current_state.get('present'):
             compliant = False
             return compliant
 
         # Secondly, compare files attributes
-        for attr in ("name", "owner", "group", "mode"):
+        for attr in ('name', 'owner', 'group'):
             if persisted_state.get(attr) != current_state.get(attr):
                 compliant = False
                 break
 
+        # Fix the retrocompatibility for mode when it used to be only 3 octal
+        # digits
+        current_mode = current_state.get('mode', '')
+        persisted_mode = persisted_state.get('mode', '')
+        if len(persisted_mode) == 3:
+            if current_mode[-3:] != persisted_mode[-3:]:
+                compliant = False
+        elif current_mode != persisted_mode:
+                compliant = False
+
         # Then compare modification times. If different, check md5sum
-        if persisted_state.get("mod_time") != current_state.get("mod_time"):
+        if persisted_state.get('mod_time') != current_state.get('mod_time'):
             current_state_md5 = self.module.md5(persisted_state['path'])
-            if current_state_md5 != persisted_state.get("md5"):
+            if current_state_md5 != persisted_state.get('md5'):
                 compliant = False
 
         return compliant
