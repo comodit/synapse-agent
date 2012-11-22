@@ -18,7 +18,7 @@ class FilesController(ResourcesController):
         self.check_mandatory(res_id)
 
         present = self.module.is_file(res_id)
-        self.status['path'] = res_id
+        self.status['name'] = res_id
         self.status['present'] = present
         if present:
             if attributes.get('get_content'):
@@ -51,7 +51,7 @@ class FilesController(ResourcesController):
         mode = self._get_mode(res_id, attributes)
         content = self._get_content(attributes)
 
-        self.comply(path=res_id,
+        self.comply(name=res_id,
                     owner=owner,
                     group=group,
                     mode=mode,
@@ -119,7 +119,7 @@ class FilesController(ResourcesController):
 
         # Then compare modification times. If different, check md5sum
         if persisted_state.get('mod_time') != current_state.get('mod_time'):
-            current_state_md5 = self.module.md5(persisted_state['path'])
+            current_state_md5 = self.module.md5(persisted_state['name'])
             if current_state_md5 != persisted_state.get('md5'):
                 compliant = False
 
