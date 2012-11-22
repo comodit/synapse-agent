@@ -1,3 +1,5 @@
+import sys
+import traceback
 import time
 import threading
 import datetime
@@ -44,8 +46,6 @@ class ResourcesController(object):
         self.scheduler = None
         self.persister = None
         
-        self.last_alerts = {}
-
         # This queue is injected by the resource locator at plugin
         # instantiation
         self.publish_queue = None
@@ -120,9 +120,17 @@ class ResourcesController(object):
                     msg += ": OK"
                     self.logger.info(msg)
 
-            except ResourceException, err:
+            except ResourceException as err:
                 self.response = self.set_response(error='%s' % err)
-                self.logger.info("[%s] %s '%s': ERROR [%s]" %
+                self.logger.info("[%s] %s '%s': RESOURCE ERROR [%s]" %
+                                 (self.__resource__.upper(),
+                                  action.capitalize(),
+                                  self.res_id,
+                                  self.response['error'].rstrip('\n')))
+            except Exception as err:
+                self.response = self.set_response(error='%s' % err)
+                traceback.print_exc(file=sys.stdout)
+                self.logger.info("[%s] %s '%s': UNKNOWN ERROR [%s]" %
                                  (self.__resource__.upper(),
                                   action.capitalize(),
                                   self.res_id,
@@ -167,8 +175,8 @@ class ResourcesController(object):
                 interval = self._get_monitor_interval()
                 self.scheduler.add_job(self.monitor_manager, interval)
                 self.scheduler.add_job(self.check_compliance, interval)
-                if self.__resource__ == 'hosts':
-                    self.scheduler.add_job(self.monitor, interval)
+                #if self.__resource__ == 'hosts':
+                #    self.scheduler.add_job(self.monitor, interval)
 
             except NotImplementedError:
                 pass
@@ -251,7 +259,7 @@ class ResourcesController(object):
         except AttributeError:
             pass
         
-    def monitor(self, state):
+    def monitor(self, persisted_state, current_state):
         raise NotImplementedError('%s monitoring not implemented'
                                   % self.__resource__)
 
