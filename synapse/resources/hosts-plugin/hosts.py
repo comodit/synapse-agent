@@ -30,15 +30,15 @@ class HostsController(ResourcesController):
 
         return self.status
 
+    def watch(self):
+        interval = self._get_monitor_interval()
+        self.scheduler.add_job(self.monitor, interval)
+
     def monitor(self):
         """Sends hosts infos regularly."""
 
-        attrs = ("ip", "hostname", "memtotal", "uptime")
         try:
-            with self._lock:
-                task = self.read(attributes=attrs)
+            attrs = ("ip", "hostname", "memtotal", "uptime")
+            self._publish_status('', self.read(attributes=attrs))
         except ResourceException:
             pass
-
-        if task:
-            self._publish_status('', task)
