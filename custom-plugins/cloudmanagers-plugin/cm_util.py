@@ -4,6 +4,18 @@ from synapse.resources.resources import ResourceException
 
 log = logger('cm_util')
 
+
+# The different states of a virtual machine
+VM_STATE_UNKNOWN = "unknown"
+VM_STATE_RUNNING = "running"
+VM_STATE_BLOCKED = "blocked"
+VM_STATE_PAUSED = "paused"
+VM_STATE_SHUTDOWN = "shutdown"
+VM_STATE_SHUTOFF = "shutoff"
+VM_STATE_CRASHED = "crashed"
+VM_STATE_REBOOTING = "rebooting"
+
+
 def read_config_file(file_name):
     '''
     Returns a parsed configuration file.
