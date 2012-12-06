@@ -66,9 +66,12 @@ class CloudmanagersController(ResourcesController):
 				# Retrieve the good module
 				cm_type = self._get_cloudmanager_type(res_id)
 				module = self._load_driver_module(cm_type)
-				
+                
+                # Initialize mandatory attributes depending on cloud manager's type
+                module._init_cloudmanager_attributes(res_id, attributes)
+                
 				# Retrieve the list of VMs
-				status['VMs'] = module._get_VMs()
+				status['VMs'] = module._get_VMs(attributes)
 			else:
 				# Retrieve the good module
 				cm_type = self._get_cloudmanager_type(res_id)
@@ -114,35 +117,38 @@ class CloudmanagersController(ResourcesController):
         module = None
         
         try:
-			# Check mandatory attributes
-			required_keys = ["name"]
-			self._check_keys_in_dict(attributes, required_keys)
-			
-			# Check integer attributes
-			int_attributes_keys = ["flavor", "vnc_port"]
-			self._check_int_attributes(attributes, int_attributes_keys)
-			
-			# Check attributes values
-			self._check_attributes_values(attributes)
-			
-			# Retrieve the good module
-			cm_type = self._get_cloudmanager_type(res_id)
-			module = self._load_driver_module(cm_type)
-			
-		except ResourceException, ex:
-			passed = False
-			error = self._append_error(error, ex)
-		except Exception, ex:
-			error = self._append_error(error, "Unknown error : %s" % ex)
-		
-		# Check if the virtual machine exists
-		if passed and not module._exists(attributes):
-			
-			try:
-				# Initialize mandatory attributes depending on cloudmanager's type
-				module._init_cloudmanager_attributes(res_id, attributes)
-				cm_type = self._get_cloudmanager_type(res_id)
-				# Initialize the virtual machine dictionary
+            # Check mandatory attributes
+            required_keys = ["name"]
+            self._check_keys_in_dict(attributes, required_keys)
+            
+            # Check integer attributes
+            int_attributes_keys = ["flavor", "vnc_port"]
+            self._check_int_attributes(attributes, int_attributes_keys)
+            
+            # Check attributes values
+            self._check_attributes_values(attributes)
+            
+            # Retrieve the good module
+            cm_type = self._get_cloudmanager_type(res_id)
+            module = self._load_driver_module(cm_type)
+            
+            # Initialize mandatory attributes depending on cloud manager's type
+            module._init_cloudmanager_attributes(res_id, attributes)
+            
+        except ResourceException, ex:
+            passed = False
+            error = self._append_error(error, ex)
+        except Exception, ex:
+            error = self._append_error(error, "Unknown error : %s" % ex)
+            
+        # Check if the virtual machine exists
+        if passed and not module._exists(attributes):
+            
+            try:
+                # Initialize mandatory attributes depending on cloudmanager's type
+                module._init_cloudmanager_attributes(res_id, attributes)
+                cm_type = self._get_cloudmanager_type(res_id)
+                # Initialize the virtual machine dictionary
                 dict_vm = {'type': cm_type,
                     'name': attributes['name'],
                     'memory': int(attributes['memory']),
@@ -178,7 +184,7 @@ class CloudmanagersController(ResourcesController):
                 # Create and provision the VM
                 state = module._create_VM(res_id, attributes, dict_vm)
                 
-				status['vm_status'] = module._get_readable_status(state)
+                status['vm_status'] = module._get_readable_status(state)
                 status['created'] = True
                 status['vm_name'] = attributes['name']
 
@@ -194,7 +200,7 @@ class CloudmanagersController(ResourcesController):
                 traceback.print_exc(file=sys.stdout)
         # If a virtual machine with the same name already exists
         elif passed:
-			status['vm_name'] = attributes['name']
+            status['vm_name'] = attributes['name']
             state = module._get_status(attributes)
             status['vm_status'] = module._get_readable_status(state)
             status['created'] = False
