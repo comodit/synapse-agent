@@ -48,63 +48,63 @@ class CloudmanagersController(ResourcesController):
 			
 
     def read(self, res_id=None, attributes=None):
-		self.logger.info("fonction read")
-		status = {}
-		error = None
-		try:
-			# If the cloud manager's id is not specified, the method will return a
-			# list of the managed cloud managers ids
-			if res_id == "":
-				status['cloudmanagers'] = self._get_cloudmanagers()
+        self.logger.info("fonction read")
+        status = {}
+        error = None
+        try:
+            # If the cloud manager's id is not specified, the method will return a
+            # list of the managed cloud managers ids
+            if res_id == "":
+                status['cloudmanagers'] = self._get_cloudmanagers()
 				
-			# If only the cloud manager's id is given, the method will return a
-			# list of the existing virtual machines on the cloud manager
-			elif (attributes is None or "name" not in attributes):
-				status['cloudmanagers'] = res_id
-				status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
-				
-				# Retrieve the good module
-				cm_type = self._get_cloudmanager_type(res_id)
-				module = self._load_driver_module(cm_type)
+            # If only the cloud manager's id is given, the method will return a
+            # list of the existing virtual machines on the cloud manager
+            elif (attributes is None or "name" not in attributes):
+                status['cloudmanagers'] = res_id
+                status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
+                
+                # Retrieve the good module
+                cm_type = self._get_cloudmanager_type(res_id)
+                module = self._load_driver_module(cm_type)
                 
                 # Initialize mandatory attributes depending on cloud manager's type
                 module._init_cloudmanager_attributes(res_id, attributes)
                 
-				# Retrieve the list of VMs
-				status['VMs'] = module._get_VMs(attributes)
-			else:
-				# Retrieve the good module
-				cm_type = self._get_cloudmanager_type(res_id)
-				module = self._load_driver_module(hyp_type)
-				
-				# Check if the VM exists and retrieve the various important fields to return
-				if module._exists(attributes):
-					status['cloudmanager'] = res_id
-					status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
-					status['vm_name'] = attributes['name']
-					
-					try:
-						status['vm_vcpus'] = module._get_vcpus(attributes)
-					except ResourceException, ex:
-						status['vm_vcpus'] = str(ex)
-						
-					status['vm_vnc_port'] = module._get_vnc_port(attributes)
-					
-					# Verifies if this is a vnx request
-					# TODO: the vnc part should come here
-					
-				else:
-					error = self._append_error(error, "The specified VM doesn't exist")
-					
-				num_status = module._get_status(attributes)
-				status['vm_status'] = module._get_readable_status(num_status)
-					
-		except ResourceException, ex:
-			error = self._append_error(error, ex)
-		except Exception, ex:
-			error = self._append_error(error, "Unknown error : %s" % ex)
-		response = self.set_response(status, error=error)
-		return response
+                # Retrieve the list of VMs
+                status['VMs'] = module._get_VMs(attributes)
+            else:
+                # Retrieve the good module
+                cm_type = self._get_cloudmanager_type(res_id)
+                module = self._load_driver_module(hyp_type)
+                
+                # Check if the VM exists and retrieve the various important fields to return
+                if module._exists(attributes):
+                    status['cloudmanager'] = res_id
+                    status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
+                    status['vm_name'] = attributes['name']
+                    
+                    try:
+                        status['vm_vcpus'] = module._get_vcpus(attributes)
+                    except ResourceException, ex:
+                        status['vm_vcpus'] = str(ex)
+                    
+                    status['vm_vnc_port'] = module._get_vnc_port(attributes)
+                    
+                    # Verifies if this is a vnx request
+                    # TODO: the vnc part should come here
+                
+                else:
+                    error = self._append_error(error, "The specified VM doesn't exist")
+                
+                num_status = module._get_status(attributes)
+                status['vm_status'] = module._get_readable_status(num_status)
+        
+        except ResourceException, ex:
+            error = self._append_error(error, ex)
+        except Exception, ex:
+            error = self._append_error(error, "Unknown error : %s" % ex)
+        response = self.set_response(status, error=error)
+        return response
 #-----------------------------------------------------------------------------
 
     def create(self, res_id=None, attributes={}):

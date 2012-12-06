@@ -50,16 +50,17 @@ def _get_VM(attributes):
     else:
         print 'Error status code: ',status
 
-
-
 #-----------------------------------------------------------------------------
+
 def _exists(attributes):
     try:
         _get_VM(attributes)
         return True
     except ResourceException:
         return False
+        
 #-----------------------------------------------------------------------------
+
 def _get_vcpus(attributes):
     vm = _get_VM(attributes)
 
@@ -68,7 +69,9 @@ def _get_vcpus(attributes):
     vm_id = vm['id']
     flavor = _get_flavor(attributes, vm_id)
     return flavor['vcpus']
+    
 #-----------------------------------------------------------------------------
+
 def _get_flavor(vm_id):
     conn = Connection(attributes["cm_nova_url"], username="", password="")
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
@@ -86,6 +89,7 @@ def _get_flavor(vm_id):
     else:
         print 'Error status code: ',status
     return flavor['flavor']
+    
 #-----------------------------------------------------------------------------
 
 def _get_vnc_port(attributes):
@@ -99,11 +103,11 @@ def _get_status(attributes):
         return vm['status']
     except (ResourceException, 'No status'):
         return 0
-        
+
 #-----------------------------------------------------------------------------
 
 def _init_cloudmanager_attributes(res_id, attributes):
-	cloudmanager_type = cm_util.get_config_option(res_id, 'cm_type', CLOUDMANAGERS_CONFIG_FILE)
+    cloudmanager_type = cm_util.get_config_option(res_id, 'cm_type', CLOUDMANAGERS_CONFIG_FILE)
 	# Initialize here specific attributes for OpenStack
     attributes["cm_base_url"] = cm_util.get_config_option(res_id, "url", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_keystone_url"] = cm_util.get_config_option(res_id, "keystone_base_url", CLOUDMANAGERS_CONFIG_FILE)
