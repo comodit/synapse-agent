@@ -213,11 +213,146 @@ class CloudmanagersController(ResourcesController):
         return response
 #-----------------------------------------------------------------------------
     def update(self, res_id=None, attributes=None):
-        pass
+        status = {}
+        error = None
+        
+        keys_upd_status = ["status"]
+        keys_upd_flavor = ["flavor"]
+        
+        cmd_mandatory_keys = [keys_upd_status, keys_upd_flavor]
+        
+        # Check if there is at least one update command with all required
+        # attributes
+        cpt = 0
+        for keys in cmd_mandatory_keys:
+            try:
+                self._check_keys_in_dict(attributes, keys)
+                cpt += 1
+            except ResourceException:
+                pass
+                
+        try:
+            # Retrieve the good module and the corresponding connection
+            cm_type = self._get_cloudmanager_type(res_id)
+            module = self._load_driver_module(cm_type)
+
+            # If none of the tests has passed, an error message is appended
+            if cpt == 0:
+                error = self._append_error(error, "There must be at least "
+                                           "one command to do an update")
+
+            # If the virtual machine exists
+            elif module._exists(attributes):
+                try:
+                    # Check the semantic values of some attributes
+                    self._check_attributes_values(attributes)
+
+                    status['vm_name'] = attributes['name']
+
+                    # Update the status
+                    if "status" in attributes:
+                        num_status = module._get_status(attributes)
+                        str_status = module._get_readable_status(num_status)
+
+                        # Check if the virtual machine is not in the required
+                        # state
+                        if (attributes['status'] != str_status):
+                                num_status = self._set_status(res_id, attributes)
+                                status['vm_status'] = module._get_readable_status(num_status)
+                        else:
+                            status['vm_status'] = str_status
+                            
+                    # Update the flavor
+                    if ("flavor" in attributes):
+
+                            vm = module._get_VM(attributes)
+                            vm_id = vm['id']
+                            current_flavor = module._get_flavor(attributes, vm_id)
+                            
+                            # Check if the current flavor is not equal to the required one
+                            if current_size != new_size:
+                                status['vm_flavor'] = module._set_flavor(attributes, vm_id, flavor)
+                            else:
+                                status['vm_flavor'] = module._get_flavor(attributes, vm_id)
+                                
+                # If there was an error during the update operations
+                except ResourceException, ex:
+                    state = module._get_status(attributes)
+                    status['vm_state'] = module._get_readable_status(state)
+                    error = self._append_error(error, ex)
+
+            # If the virtual machine doesn't exist
+            else:
+                status['vm_state'] = cm_util.VM_STATE_UNKNOWN
+                error = self._append_error(error, "The specified VM doesn't "
+                                           "exist")
+        except ResourceException, ex:
+            error = self._append_error(error, ex)
+        except Exception, ex:
+            error = self._append_error(error, "Unknown error : %s" % ex)
+
+        status['cloudmanager'] = res_id
+
+        response = self.set_response(status, error=error)
+
+        return response
+        
 #-----------------------------------------------------------------------------
     def delete(self, res_id=None, attributes=None):
-        pass
-        
+        status = {}
+        error = None
+
+        required_keys = ["name"]
+
+        try:
+            # Check if the name of the virtual machine to delete exists in the
+            # attributes
+            self._check_keys_in_dict(attributes, required_keys)
+
+            # Retrieve the good module
+            cm_type = self._get_cloudmanager_type(res_id)
+            module = self._load_driver_module(cm_type)
+            
+            # Check if the virtual machine exists
+            if module._exists(connection, attributes):
+                status['vm_name'] = attributes['name']
+
+                num_status = module._get_status(attributes)
+
+                # If the machine is running and the attribute 'force' is not
+                #specified, then the machine can't be removed
+                if (("force" not in attributes or attributes['force'] == False)
+                    and module._get_readable_status(num_status) == cm_util.VM_STATE_RUNNING):
+                        status['vm_status'] = module._get_readable_status(num_status)
+                        status['deleted'] = False
+                        error = self._append_error(error, "The VM is "
+                                    "currently running. Use the option "
+                                    "force or shutdown the VM.")
+
+                # Otherwise, we can remove the virtual machine
+                else:
+                    state = module._delete_VM(attributes)
+                    status['vm_status'] = module._get_readable_status(state)
+                    status['deleted'] = True
+
+            # If the machine doesn't exist
+            else:
+                status['vm_name'] = attributes['name']
+                status['vm_status'] = cm_util.VM_STATE_UNKNOWN
+                status['deleted'] = False
+                error = self._append_error(error,
+                            "The specified VM doesn't exist")
+
+        except ResourceException, ex:
+            error = self._append_error(error, ex)
+        except Exception, ex:
+            error = self._append_error(error, "Unknown error : %s" % ex)
+
+        status['cloudmanager'] = res_id
+
+        response = self.set_response(status, error=error)
+
+        return response
 
 #-----------------------------------------------------------------------------
 
@@ -256,3 +391,107 @@ class CloudmanagersController(ResourcesController):
 
         return cloudmanagers
 #-----------------------------------------------------------------------------
+
+    def _check_keys_in_dict(self, dictionary, keys):
+        '''
+        Checks if keys exist in a dict.
+
+        @param dictionary: the dictionary on which the keys will be checked
+        @type dictionary: dict
+
+        @param keys: the keys to check in the given dictionary
+        @type keys: list
+        '''
+        for key in keys:
+            if key not in dictionary:
+                raise ResourceException("Mandatory attribute '%s' is missing"
+                                        % key)
+            elif key is None:
+                raise ResourceException("Mandatory attribute '%s' is None"
+                                        % key)
+
+#-----------------------------------------------------------------------------
+
+    def _check_attributes_values(self, attributes):
+        '''
+        Checks values of the attributes dictionary in terms of semantic
+
+        @param attributes: the dictionary of attributes
+        @type attributes: dict
+        '''
+        if "name" in attributes:
+            if attributes['name'] == "":
+                raise ResourceException("The VM name must not be empty.")
+
+        if "flavor" in attributes:
+            if attributes['flavor'] == "" :
+                raise ResourceException("The flavor must be specified.")
+
+        if "image" in attributes:
+            if attributes['image'] == "":
+                raise ResourceException("The image must be specified")
+
+#-----------------------------------------------------------------------------
+
+    def _set_status(self, res_id, attributes):
+        '''
+        Retrieves the status number and executes the corresponding action.
+
+        @param res_id: cloud manager's id
+        @type res_id: str
+
+        @param attributes: the different attributes which will be used to
+                            update the status of a virtual machine
+        @type attributes: dict
+        '''
+        # Retrieve the good module
+        cm_type = self._get_cloudmanager_type(res_id)
+        module = self._load_driver_module(cm_type)
+
+        # If the virtual machine is already in the given state, then this state
+        # is returned
+        if attributes['status'] == module._get_status(attributes):
+            return module._get_status(attributes)
+
+        try:
+            # Retrieve a reference to the method of the module to call to
+            # update the status of a virtual machine
+            status_action = {
+                cm_util.VM_STATE_RUNNING: self._run_vm(res_id, attributes),
+                cm_util.VM_STATE_PAUSED: module._pause,
+                cm_util.VM_STATE_SHUTDOWN: module._shutdown,
+                cm_util.VM_STATE_SHUTOFF: module._shutoff,
+                cm_util.VM_STATE_REBOOTING: module._reboot
+            }[attributes['status']]
+
+        except KeyError:
+            raise ResourceException("The given status is unknown")
+
+        # Call the method and return the final status of the virtual machine
+        return status_action(attributes)
+
+#-----------------------------------------------------------------------------
+
+    def _run_vm(self, res_id, attributes):
+        '''
+        Returns the most appropriate method to run the VM
+
+        @param res_id: cloud manager's id
+        @type res_id: str
+
+        @param attributes: the different attributes which will be used to
+                            run a virtual machine
+        @type attributes: dict
+        '''
+        # Retrieve the good module
+        cm_type = self._get_cloudmanager_type(res_id)
+        module = self._load_driver_module(cm_type)
+
+        # Retrieve the statusd of the virtual machine
+        status = module._get_status(attributes)
+
+        # Resume the virtual machine if it's paused and start it in other cases
+        if module._get_readable_status(status) == cm_util.VM_STATE_PAUSED:
+            return module._resume
+        else:
+            return module._start

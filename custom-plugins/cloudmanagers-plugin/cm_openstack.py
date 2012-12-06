@@ -72,7 +72,7 @@ def _get_vcpus(attributes):
     
 #-----------------------------------------------------------------------------
 
-def _get_flavor(vm_id):
+def _get_flavor(attributes, vm_id):
     conn = Connection(attributes["cm_nova_url"], username="", password="")
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
     resp = conn.request_get("/" + tenant_id +"/servers/" + vm_id, args={}, headers={'content-type':'application/json', 'accept':'application/json', 'x-auth-token':x_auth_token})
@@ -90,6 +90,22 @@ def _get_flavor(vm_id):
         print 'Error status code: ',status
     return flavor['flavor']
     
+#-----------------------------------------------------------------------------
+
+def _set_flavor(attributes, vm_id, flavor):
+    conn = Connection(attributes["cm_nova_url"], username="", password="")
+    tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+    body = '{"resize": {"flavorRef":"'+ flavor + '"}}'
+    headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+    uri = tenant_id + "/servers" + vm_id + "/action"
+    resp = conn.request_post(uri, body=body, headers=headers)
+    if status == '200' or status == '304':
+        data = json.loads(resp['body'])
+        print "vm creee et get_status vaut", _get_status(attributes)
+        return _get_status(attributes)
+    else:
+        print 'Error http status code: ',status
+
 #-----------------------------------------------------------------------------
 
 def _get_vnc_port(attributes):
@@ -124,9 +140,6 @@ def _create_VM(res_id, attributes, dict_vm):
     body = '{"server": {"name":"'+ dict_vm['name'].encode() + '", "imageRef":"' + dict_vm['image'].encode() + '", "key_name": "' + dict_vm['key'].encode() + '", "flavorRef":"' + dict_vm['flavor'] + '", "max_count": 1, "min_count": 1, "security_groups": [{"name": "default"}]}}'
     headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
     uri = tenant_id + "/servers"
-    print 'body vaut', body
-    print 'headers vaut', headers
-    print 'uri vaut', uri
     resp = conn_nova.request_post(uri, body=body, headers=headers)
     status = resp[u'headers']['status']
     if status == '200' or status == '304':
@@ -136,6 +149,17 @@ def _create_VM(res_id, attributes, dict_vm):
     else:
         print 'Error http status code: ',status
         
+#-----------------------------------------------------------------------------
+
+def _delete_VM(attributes):
+    conn = Connection(attributes["cm_nova_url"], username="", password="")
+    tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+    vm = _get_VM(attributes)
+    vm_id = vm['id']
+    resp = conn.request_delete("/" + tenant_id +"/servers/" + vm_id, args={}, headers={'content-type':'application/json', 'accept':'application/json', 'x-auth-token':x_auth_token})
+
+    return _get_status(attributes)
+
 #-----------------------------------------------------------------------------
 
 def _get_keystone_tokens(attributes):
@@ -163,4 +187,111 @@ def _get_status(attributes):
         return vm['status']
     except (ResourceException, 'pas de statut'):
         return 0
+#-----------------------------------------------------------------------------
+def _exists(attributes):
+    try:
+        _get_VM(attributes)
+        return True
+    except ResourceException:
+        return False
+#-----------------------------------------------------------------------------
+
+def _start(attributes):
+    '''
+    Starts a VM.
+
+    @param attributes: the dictionary of the attributes that will be used to
+                        start a virtual machine
+    @type attributes: dict
+    '''
+    vm = _get_VM(attributes)
+
+    if vm.isActive() != 1:
+        vm.create()
+
+    else:
+        raise ResourceException("The VM is already running")
+
+    return _get_status(attributes)
+
+#-----------------------------------------------------------------------------
+
+def _shutdown(attributes):
+    '''
+    Shuts down a VM.
+
+    @param attributes: the dictionary of the attributes that will be used to
+                        shutdown a virtual machine
+    @type attributes: dict
+    '''
+    vm = _get_VM(attributes)
+
+    if vm.isActive() == 1:
+        vm.shutdown()
+
+    else:
+        raise ResourceException("The VM is not running")
+
+    return _get_status(attributes)
+
+#-----------------------------------------------------------------------------
+
+def _shutoff(attributes):
+    '''
+    Shuts off a VM.
+
+    @param attributes: the dictionary of the attributes that will be used to
+                        shutoff a virtual machine
+    @type attributes: dict
+    '''
+    vm = _get_VM(attributes)
+
+    if vm.isActive() == 1:
+        vm.destroy()
+
+    else:
+        raise ResourceException("The VM is not running")
+
+    return _get_status(attributes)
+
+#-----------------------------------------------------------------------------
+
+def _reboot(attributes):
+    '''
+    Reboots a VM.
+
+    @param attributes: the dictionary of the attributes that will be used to
+                        reboot a virtual machine
+    @type attributes: dict
+    '''
+    vm = _get_VM(attributes)
+
+    if vm.isActive() == 1:
+        vm.reboot(0)
+
+    else:
+        raise ResourceException("The VM is not running")
+
+    return _get_status(attributes)
+
+#-----------------------------------------------------------------------------
+
+def _pause(attributes):
+    '''
+    Pauses a VM.
+
+    @param attributes: the dictionary of the attributes that will be used to
+                        pause a virtual machine
+    @type attributes: dict
+    '''
+    vm = _get_VM(attributes)
+
+    if vm.isActive():
+        vm.suspend()
+
+    else:
+        raise ResourceException("The VM must be running")
+
+    return _get_status(attributes)
+
 #-----------------------------------------------------------------------------
