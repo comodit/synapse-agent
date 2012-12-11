@@ -3,7 +3,7 @@ from synapse.config import config
 from synapse.syncmd import exec_cmd
 from synapse.resources.resources import ResourceException
 import json
-from restful_lib import Connection
+from restful.restful_lib import Connection
 import ConfigParser
 
 from synapse.logger import logger

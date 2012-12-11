@@ -380,7 +380,6 @@ class CloudmanagersController(ResourcesController):
         Returns cloudmanagers from the config file
         '''
         config = cm_util.read_config_file(self.CLOUDMANAGERS_CONFIG_FILE)
-        import pdb; pdb.set_trace()
         # Get a list of sections corresponding to cloud managers ids
         cloudmanagers = config.sections()
         try:

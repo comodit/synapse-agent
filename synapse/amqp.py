@@ -222,6 +222,7 @@ class AmqpSynapse(Amqp):
         self.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
         self.logger.debug("Header Frame: %s" % header_frame)
         self.logger.debug("Method Frame: %s" % method_frame)
+        self.logger.debug("Body: %s" % body)
 
         if not method_frame.redelivered:
             self.tasks_queue.put((vars(header_frame), body))
