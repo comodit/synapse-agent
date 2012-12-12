@@ -32,7 +32,6 @@ def _get_VMs(attributes):
         print 'Error status code: ',status
 #-----------------------------------------------------------------------------
 def _get_VM(attributes):
-    import pdb; pdb.set_trace()
     conn = Connection(attributes["cm_nova_url"], username="", password="")
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
     resp = conn.request_get("/" + tenant_id +"/servers/detail", args={}, headers={'content-type':'application/json', 'accept':'application/json', 'x-auth-token':x_auth_token})
@@ -126,7 +125,6 @@ def _get_status(attributes):
 def _init_cloudmanager_attributes(res_id, attributes):
     cloudmanager_type = cm_util.get_config_option(res_id, 'cm_type', CLOUDMANAGERS_CONFIG_FILE)
 	# Initialize here specific attributes for OpenStack
-    
     attributes["cm_base_url"] = cm_util.get_config_option(res_id, "url", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_keystone_url"] = cm_util.get_config_option(res_id, "keystone_base_url", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_nova_url"] = cm_util.get_config_option(res_id, "nova_base_url", CLOUDMANAGERS_CONFIG_FILE)
@@ -165,8 +163,7 @@ def _delete_VM(attributes):
 #-----------------------------------------------------------------------------
 
 def _get_keystone_tokens(attributes):
-    import pdb; pdb.set_trace()
-    conn = Connection(attributes["cm_keystone_url"])
+    conn = Connection(keystone_base_url)
     body = '{"auth": {"tenantName":"'+ attributes["cm_tenant_name"] + '", "passwordCredentials":{"username": "' + attributes["cm_username"] + '", "password": "' + attributes["cm_password"] + '"}}}'
     resp = conn.request_post("/tokens", body=body, headers={'Content-type':'application/json'})
     status = resp[u'headers']['status']

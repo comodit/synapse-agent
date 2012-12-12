@@ -6,6 +6,8 @@ from synapse.logger import logger
 
 import cm_util
 import cm_openstack
+import cm_opennebula
+import cm_cloudstack
 
 @logger
 class CloudmanagersController(ResourcesController):
@@ -16,10 +18,9 @@ class CloudmanagersController(ResourcesController):
     CM_TYPE_OPENSTACK = "openstack"
     CM_TYPE_CLOUDSTACK = "cloudstack"
     CM_TYPE_OPENNEBULA = "opennebula"
-    CM_TYPE_OTHER = "other"
     
     # A dict to map the submodules to the cloud managers types
-    CM_MAPPING = {cm_openstack: [CM_TYPE_OPENSTACK, CM_TYPE_CLOUDSTACK, CM_TYPE_OPENNEBULA], cm_openstack: [CM_TYPE_OTHER]}
+    CM_MAPPING = {cm_openstack: [CM_TYPE_OPENSTACK], cm_cloudstack: [CM_TYPE_CLOUDSTACK], cm_opennebula: [CM_TYPE_OPENNEBULA]}
                    
     # The configuration file of the cloud managers plugin
     CLOUDMANAGERS_CONFIG_FILE = config.paths['config_path'] + "/plugins/cloudmanagers.conf"
@@ -38,13 +39,13 @@ class CloudmanagersController(ResourcesController):
 		return cm_util.get_config_option(res_id, "cm_type", self.CLOUDMANAGERS_CONFIG_FILE)
         
     def _load_driver_module(self, cm_type):
-		for module in self.CM_MAPPING:
-			if cm_type in CM_MAPPING[module]:
-				try:
-					return module
-				except ImportError:
-					pass
-		return None
+        for module in self.CM_MAPPING:
+            if cm_type in self.CM_MAPPING[module]:
+                try:
+                    return module
+                except ImportError:
+                    pass
+        return None
 			
 
     def read(self, res_id=None, attributes=None):
@@ -75,7 +76,9 @@ class CloudmanagersController(ResourcesController):
             else:
                 # Retrieve the good module
                 cm_type = self._get_cloudmanager_type(res_id)
-                module = self._load_driver_module(hyp_type)
+                module = self._load_driver_module(cm_type)
+                # Initialize mandatory attributes depending on cloud manager's type
+                module._init_cloudmanager_attributes(res_id, attributes)
                 
                 # Check if the VM exists and retrieve the various important fields to return
                 if module._exists(attributes):
