@@ -75,7 +75,7 @@ def _full_entry(entry):
     items = entry.split()
     if len(items) == 1:
         return False
-    elif len(items) >= 3:
+    elif len(items) >= 2:
         return True
     else:
         raise ResourceException("Invalid baseurl attribute.")
