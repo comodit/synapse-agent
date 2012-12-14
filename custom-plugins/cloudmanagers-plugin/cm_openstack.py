@@ -32,7 +32,6 @@ def _get_VMs(attributes):
         print 'Error status code: ',status
 #-----------------------------------------------------------------------------
 def _get_VM(attributes):
-    import pdb; pdb.set_trace()
     conn = Connection(attributes["cm_nova_url"], username="", password="")
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
     resp = conn.request_get("/" + tenant_id +"/servers/detail", args={}, headers={'content-type':'application/json', 'accept':'application/json', 'x-auth-token':x_auth_token})
@@ -64,7 +63,6 @@ def _exists(attributes):
 
 def _get_vcpus(attributes):
     vm = _get_VM(attributes)
-
     if not vm['status'] == 'ACTIVE':
         raise ResourceException("The CPUs info can't be retrieved while the VM is not running")
     vm_id = vm['id']
@@ -98,12 +96,12 @@ def _set_flavor(attributes, vm_id, flavor):
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
     body = '{"resize": {"flavorRef":"'+ flavor + '"}}'
     headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
-    uri = tenant_id + "/servers" + vm_id + "/action"
+    uri = tenant_id + "/servers/" + vm_id + "/action"
     resp = conn.request_post(uri, body=body, headers=headers)
-    if status == '200' or status == '304':
-        data = json.loads(resp['body'])
+    status = resp[u'headers']['status']
+    if status == '200' or status == '304' or status == '202':
         print "vm creee et get_status vaut", _get_status(attributes)
-        return _get_status(attributes)
+        return _get_flavor(attributes, vm_id)
     else:
         print 'Error http status code: ',status
 
@@ -165,7 +163,6 @@ def _delete_VM(attributes):
 #-----------------------------------------------------------------------------
 
 def _get_keystone_tokens(attributes):
-    import pdb; pdb.set_trace()
     conn = Connection(attributes["cm_keystone_url"])
     body = '{"auth": {"tenantName":"'+ attributes["cm_tenant_name"] + '", "passwordCredentials":{"username": "' + attributes["cm_username"] + '", "password": "' + attributes["cm_password"] + '"}}}'
     resp = conn.request_post("/tokens", body=body, headers={'Content-type':'application/json'})
@@ -209,11 +206,21 @@ def _start(attributes):
     '''
     vm = _get_VM(attributes)
 
-    if vm.isActive() != 1:
-        vm.create()
+    if _get_status(attributes) == "SUSPENDED":
+        conn = Connection(attributes["cm_nova_url"], username="", password="")
+        tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+        body = '{"resume": null}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm['id'] + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            print "vm demarree et get_status vaut", _get_status(attributes)
+        else:
+            print 'Error http status code: ',status
 
     else:
-        raise ResourceException("The VM is already running")
+        raise ResourceException("The VM must be suspended")
 
     return _get_status(attributes)
 
@@ -229,11 +236,21 @@ def _shutdown(attributes):
     '''
     vm = _get_VM(attributes)
 
-    if vm.isActive() == 1:
-        vm.shutdown()
+    if _get_status(attributes) == "ACTIVE":
+        conn = Connection(attributes["cm_nova_url"], username="", password="")
+        tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+        body = '{"suspend": null}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm['id'] + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            print "vm suspendue et get_status vaut", _get_status(attributes)
+        else:
+            print 'Error http status code: ',status
 
     else:
-        raise ResourceException("The VM is not running")
+        raise ResourceException("The VM must be running")
 
     return _get_status(attributes)
 
@@ -249,11 +266,11 @@ def _shutoff(attributes):
     '''
     vm = _get_VM(attributes)
 
-    if vm.isActive() == 1:
+    '''if vm.isActive() == 1:
         vm.destroy()
 
     else:
-        raise ResourceException("The VM is not running")
+        raise ResourceException("The VM is not running")'''
 
     return _get_status(attributes)
 
@@ -269,11 +286,21 @@ def _reboot(attributes):
     '''
     vm = _get_VM(attributes)
 
-    if vm.isActive() == 1:
-        vm.reboot(0)
+    if _get_status(attributes) == "ACTIVE":
+        conn = Connection(attributes["cm_nova_url"], username="", password="")
+        tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+        body = '{"reboot": {"type" : "SOFT"}}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm['id'] + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            print "vm suspendue et get_status vaut", _get_status(attributes)
+        else:
+            print 'Error http status code: ',status
 
     else:
-        raise ResourceException("The VM is not running")
+        raise ResourceException("The VM must be running")
 
     return _get_status(attributes)
 
@@ -289,11 +316,51 @@ def _pause(attributes):
     '''
     vm = _get_VM(attributes)
 
-    if vm.isActive():
-        vm.suspend()
+    if _get_status(attributes) == "ACTIVE":
+        conn = Connection(attributes["cm_nova_url"], username="", password="")
+        tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+        body = '{"pause": null}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm['id'] + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            print "vm mise en pause et get_status vaut", _get_status(attributes)
+        else:
+            print 'Error http status code: ',status
 
     else:
         raise ResourceException("The VM must be running")
+
+    return _get_status(attributes)
+
+#-----------------------------------------------------------------------------
+def _resume(attributes):
+    '''
+    Pauses a VM.
+
+    @param attributes: the dictionary of the attributes that will be used to
+                        pause a virtual machine
+    @type attributes: dict
+    '''
+    import pdb; pdb.set_trace()
+    vm = _get_VM(attributes)
+
+    if _get_status(attributes) == "PAUSED":
+        conn = Connection(attributes["cm_nova_url"], username="", password="")
+        tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+        body = '{"unpause": null}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm['id'] + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            print "vm sortie de pause et get_status vaut", _get_status(attributes)
+        else:
+            print 'Error http status code: ',status
+
+    else:
+        raise ResourceException("The VM must be paused")
 
     return _get_status(attributes)
 

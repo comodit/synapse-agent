@@ -3,7 +3,11 @@ from synapse.resources.resources import ResourceException
 from synapse.config import config
 
 from synapse.logger import logger
-
+import traceback
+import sys
+import os
+import uuid
+import random
 import cm_util
 import cm_openstack
 import cm_opennebula
@@ -154,29 +158,6 @@ class CloudmanagersController(ResourcesController):
                 # Initialize the virtual machine dictionary
                 dict_vm = {'type': cm_type,
                     'name': attributes['name'],
-                    'memory': int(attributes['memory']),
-                    'num_cpu': int(attributes.get('num_cpu', 1)),
-                    'arch_type': attributes.get('arch_type', "i686"),
-                    'os_type': attributes['os_type'],
-                    'kernel_path': attributes['kernel_path'],
-                    'initrd_path': attributes['initrd_path'],
-                    'cmd_line': attributes.get('cmd_line', ""),
-                    'boot_dev': attributes.get('boot_dev', "hd"),
-                    'emulator_path': attributes.get('emulator_path', ""),
-                    'disk_driver': attributes.get('disk_driver', "qemu"),
-                    'disk_type': attributes.get('disk_type', "raw"),
-                    'bridged': attributes.get('bridged', False),
-                    'mac_address':
-                        attributes.get('mac_address',
-                                       self._generate_mac_address(
-                                           self.MAC_PREFIX)),
-                    'bridge_interface': attributes.get('bridge_interface',
-                                                       ""),
-                    'vnc_port': int(attributes.get('vnc_port', -1)),
-                    'floppy': attributes.get('floppy', False),
-                    'floppy_path': attributes.get('floppy_path', ""),
-                    'cdrom': attributes.get('cdrom', False),
-                    'cdrom_path': attributes.get('cdrom_path', ""),
                     'flavor': attributes.get('flavor', ""),
                     'image': attributes.get('image', ""),
                     'key': attributes.get('key', "")
@@ -215,13 +196,12 @@ class CloudmanagersController(ResourcesController):
         
         return response
 #-----------------------------------------------------------------------------
-    def update(self, res_id=None, attributes=None):
+    def update(self, res_id=None, attributes={}):
         status = {}
         error = None
         
         keys_upd_status = ["status"]
         keys_upd_flavor = ["flavor"]
-        
         cmd_mandatory_keys = [keys_upd_status, keys_upd_flavor]
         
         # Check if there is at least one update command with all required
@@ -238,6 +218,9 @@ class CloudmanagersController(ResourcesController):
             # Retrieve the good module and the corresponding connection
             cm_type = self._get_cloudmanager_type(res_id)
             module = self._load_driver_module(cm_type)
+            
+            # Initialize mandatory attributes depending on cloud manager's type
+            module._init_cloudmanager_attributes(res_id, attributes)
 
             # If none of the tests has passed, an error message is appended
             if cpt == 0:
@@ -271,12 +254,15 @@ class CloudmanagersController(ResourcesController):
                             vm = module._get_VM(attributes)
                             vm_id = vm['id']
                             current_flavor = module._get_flavor(attributes, vm_id)
+                            new_flavor = attributes["flavor"]
                             
                             # Check if the current flavor is not equal to the required one
-                            if current_size != new_size:
-                                status['vm_flavor'] = module._set_flavor(attributes, vm_id, flavor)
+                            if current_flavor["id"] != new_flavor:
+                                flavor_dict = module._set_flavor(attributes, vm_id, new_flavor)
+                                status['vm_flavor'] = flavor_dict["id"]
                             else:
-                                status['vm_flavor'] = module._get_flavor(attributes, vm_id)
+                                flavor_dict = module._get_flavor(attributes, vm_id)
+                                status['vm_flavor'] = flavor_dict["id"]
                                 
                 # If there was an error during the update operations
                 except ResourceException, ex:
@@ -316,8 +302,11 @@ class CloudmanagersController(ResourcesController):
             cm_type = self._get_cloudmanager_type(res_id)
             module = self._load_driver_module(cm_type)
             
+            # Initialize mandatory attributes depending on cloud manager's type
+            module._init_cloudmanager_attributes(res_id, attributes)
+            
             # Check if the virtual machine exists
-            if module._exists(connection, attributes):
+            if module._exists(attributes):
                 status['vm_name'] = attributes['name']
 
                 num_status = module._get_status(attributes)
@@ -435,6 +424,30 @@ class CloudmanagersController(ResourcesController):
 
 #-----------------------------------------------------------------------------
 
+    def _check_int_attributes(self, attributes, keys):
+        '''
+        Checks integer values in a dictionary
+
+        @param attributes: the dictionary on which the integer keys will be
+                            checked
+        @type attributes: dict
+
+        @param keys: the keys of the integer attributes
+        @type keys: list
+        '''
+        for key in keys:
+            if key in attributes:
+                try:
+                    int(attributes[key])
+                except ValueError:
+                    raise ResourceException("Attribute '%s' must be integer" %
+                                            key)
+                except TypeError:
+                    raise ResourceException("Attribute '%s' is None" % key)
+
+#-----------------------------------------------------------------------------
+
+
     def _set_status(self, res_id, attributes):
         '''
         Retrieves the status number and executes the corresponding action.
@@ -463,7 +476,8 @@ class CloudmanagersController(ResourcesController):
                 cm_util.VM_STATE_PAUSED: module._pause,
                 cm_util.VM_STATE_SHUTDOWN: module._shutdown,
                 cm_util.VM_STATE_SHUTOFF: module._shutoff,
-                cm_util.VM_STATE_REBOOTING: module._reboot
+                cm_util.VM_STATE_REBOOTING: module._reboot,
+                cm_util.VM_STATE_RESUME: module._resume
             }[attributes['status']]
 
         except KeyError:
