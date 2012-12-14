@@ -196,6 +196,19 @@ def _exists(attributes):
         return False
 #-----------------------------------------------------------------------------
 
+def _get_images(attributes):
+    conn = Connection(attributes["cm_nova_url"], username="", password="")
+    tenant_id, x_auth_token = _get_keystone_tokens(attributes)
+    resp = conn.request_get("/" + tenant_id + "/images", args={}, headers={'content-type':'application/json', 'accept':'application/json', 'x-auth-token':x_auth_token})
+    status = resp[u'headers']['status']
+    if status == '200' or status == '304':
+        images = json.loads(resp['body'])
+        return images['images']
+    else:
+        print 'Error status code: ',status    
+
+#-----------------------------------------------------------------------------
+
 def _start(attributes):
     '''
     Starts a VM.
@@ -343,7 +356,6 @@ def _resume(attributes):
                         pause a virtual machine
     @type attributes: dict
     '''
-    import pdb; pdb.set_trace()
     vm = _get_VM(attributes)
 
     if _get_status(attributes) == "PAUSED":

@@ -24,7 +24,6 @@ def read_config_file(file_name):
     @param file_name: the path to the configuration file
     @type file_name: str
     '''
-    log.info("fonction read_config_file")
     config = ConfigParser.ConfigParser()
 
     try:

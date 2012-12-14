@@ -28,19 +28,22 @@ class CloudmanagersController(ResourcesController):
                    
     # The configuration file of the cloud managers plugin
     CLOUDMANAGERS_CONFIG_FILE = config.paths['config_path'] + "/plugins/cloudmanagers.conf"
-    
+
+#-----------------------------------------------------------------------------
+
     def __init__(self, mod):
 		super(CloudmanagersController, self).__init__(mod)
-		self.logger.info("fonction init")
 		try:
 			pass
 		except ResourceException:
 			self.logger.warn('{0} in not valid. The {1} plugin will probably not work'.format(self.CLOUDMANAGERS_CONFIG_FILE,self.__resource__))
-		
+
+#-----------------------------------------------------------------------------		
     
     def _get_cloudmanager_type(self, res_id):
-		self.logger.info("fonction _get_cloudmanager_type")
 		return cm_util.get_config_option(res_id, "cm_type", self.CLOUDMANAGERS_CONFIG_FILE)
+
+#-----------------------------------------------------------------------------
         
     def _load_driver_module(self, cm_type):
         for module in self.CM_MAPPING:
@@ -51,9 +54,38 @@ class CloudmanagersController(ResourcesController):
                     pass
         return None
 			
+#-----------------------------------------------------------------------------
+
+    def listimages(self, res_id=None, attributes=None):
+        status={}
+        error = None
+        try:
+            if(attributes is None):
+                status['cloudmanagers'] = res_id
+                status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
+                
+                # Retrieve the good module
+                cm_type = self._get_cloudmanager_type(res_id)
+                module = self._load_driver_module(cm_type)
+                
+                # Initialize mandatory attributes depending on cloud manager's type
+                module._init_cloudmanager_attributes(res_id, attributes)
+                
+                status['images'] = module._get_images(attributes)
+                
+            else:
+                error = self._append_error(error, "No arguments are yet allowed for this method")
+        except ResourceException, ex:
+            error = self._append_error(error, ex)
+        except Exception, ex:
+            error = self._append_error(error, "Unknown error : %s" % ex)
+                
+        response = self.set_response(status, error=error)
+        return response        
+
+#-----------------------------------------------------------------------------
 
     def read(self, res_id=None, attributes=None):
-        self.logger.info("fonction read")
         status = {}
         error = None
         try:
@@ -64,7 +96,7 @@ class CloudmanagersController(ResourcesController):
 				
             # If only the cloud manager's id is given, the method will return a
             # list of the existing virtual machines on the cloud manager
-            elif (attributes is None or "name" not in attributes):
+            elif (attributes is None or "name" not in attributes and "listimages" not in attributes):
                 status['cloudmanagers'] = res_id
                 status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
                 
@@ -77,6 +109,19 @@ class CloudmanagersController(ResourcesController):
                 
                 # Retrieve the list of VMs
                 status['VMs'] = module._get_VMs(attributes)
+                
+            elif ("listimages" in attributes):
+                status['cloudmanagers'] = res_id
+                status['url'] = cm_util.get_config_option(res_id, "url", self.CLOUDMANAGERS_CONFIG_FILE)
+                
+                # Retrieve the good module
+                cm_type = self._get_cloudmanager_type(res_id)
+                module = self._load_driver_module(cm_type)
+                
+                # Initialize mandatory attributes depending on cloud manager's type
+                module._init_cloudmanager_attributes(res_id, attributes)
+                
+                status['images'] = module._get_images(attributes)
             else:
                 # Retrieve the good module
                 cm_type = self._get_cloudmanager_type(res_id)
