@@ -12,6 +12,7 @@ from synapse.syncmd import exec_cmd
 # The configuration file of the cloud managers plugin
 CLOUDMANAGERS_CONFIG_FILE = config.paths['config_path'] + "/plugins/cloudmanagers.conf"
 
+log = logger("cm_openstack")
 
 #-----------------------------------------------------------------------------
 
@@ -29,7 +30,7 @@ def _get_VMs(attributes):
             i = i+1
         return vms
     else:
-        print 'Error status code: ',status
+        log.error("_get_VMs: Bad HTTP return code: %s" % status)
 #-----------------------------------------------------------------------------
 def _get_VM(attributes):
     conn = Connection(attributes["cm_nova_url"], username="", password="")
@@ -42,13 +43,12 @@ def _get_VM(attributes):
         for vm in servers['servers']:
             if attributes['name'] == vm['name']:
                 found = 1
-                #self.logger.debug("_get_VM(): attributes['name'] vaut %s" % attributes['name'])
                 return vm
         if found == 0:
             #return False
             raise ResourceException("vm %s not found" % attributes['name'])
     else:
-        print 'Error status code: ',status
+        log.error("_get_VM: Bad HTTP return code: %s" % status)
 
 #-----------------------------------------------------------------------------
 
@@ -80,30 +80,45 @@ def _get_flavor(attributes, vm_id):
         server = json.loads(resp['body'])
         flavor_id = server['server']['flavor']['id']
     else:
-        print 'Error status code: ',status
+        log.error("Bad HTTP return code: %s" % status)
     resp = conn.request_get("/" + tenant_id +"/flavors/" + flavor_id, args={}, headers={'content-type':'application/json', 'accept':'application/json', 'x-auth-token':x_auth_token})
     status = resp[u'headers']['status']
     if status == '200' or status == '304':
         flavor = json.loads(resp['body'])
     else:
-        print 'Error status code: ',status
+        log.error("_get_flavor: Bad HTTP return code: %s" % status)
     return flavor['flavor']
     
 #-----------------------------------------------------------------------------
 
-def _set_flavor(attributes, vm_id, flavor):
+def _set_flavor(attributes, vm_id, current_flavor, new_flavor):
+    vm_status = _get_status(attributes)
     conn = Connection(attributes["cm_nova_url"], username="", password="")
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
-    body = '{"resize": {"flavorRef":"'+ flavor + '"}}'
-    headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
-    uri = tenant_id + "/servers/" + vm_id + "/action"
-    resp = conn.request_post(uri, body=body, headers=headers)
-    status = resp[u'headers']['status']
-    if status == '200' or status == '304' or status == '202':
-        print "vm creee et get_status vaut", _get_status(attributes)
-        return _get_flavor(attributes, vm_id)
+    if (vm_status == 'ACTIVE' and current_flavor != new_flavor):
+        body = '{"resize": {"flavorRef":"'+ new_flavor + '"}}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm_id + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            return _get_flavor(attributes, vm_id)
+        else:
+            log.error("Bad HTTP return code: %s" % status)
+    elif (vm_status == 'RESIZE'):
+        log.error("Wait for VM resizing before confirming action")
+    elif (vm_status == 'VERIFY_RESIZE'):
+        body = '{"confirmResize": null}'
+        headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
+        uri = tenant_id + "/servers/" + vm_id + "/action"
+        resp = conn.request_post(uri, body=body, headers=headers)
+        status = resp[u'headers']['status']
+        if status == '200' or status == '304' or status == '202':
+            return _get_flavor(attributes, vm_id)
+        else:
+            log.error("_set_flavor: Bad HTTP return code: %s" % status)
     else:
-        print 'Error http status code: ',status
+        log.error("Wrong VM state or wring destination flavor")
 
 #-----------------------------------------------------------------------------
 
@@ -144,10 +159,9 @@ def _create_VM(res_id, attributes, dict_vm):
     status = resp[u'headers']['status']
     if status == '200' or status == '304':
         data = json.loads(resp['body'])
-        print "vm creee et get_status vaut", _get_status(attributes)
         return _get_status(attributes)
     else:
-        print 'Error http status code: ',status
+        log.error("_create_VM: Bad HTTP return code: %s" % status)
         
 #-----------------------------------------------------------------------------
 
@@ -173,7 +187,7 @@ def _get_keystone_tokens(attributes):
         x_auth_token = data['access']['token']['id']
         return tenant_id, x_auth_token
     else:
-        print 'Error status code: ',status
+        log.error("_get_keystone_tokens: Bad HTTP return code: %s" % status)
         
 #-----------------------------------------------------------------------------
 
@@ -205,7 +219,7 @@ def _get_images(attributes):
         images = json.loads(resp['body'])
         return images['images']
     else:
-        print 'Error status code: ',status    
+        log.error("_get_images: Bad HTTP return code: %s" % status)    
 
 #-----------------------------------------------------------------------------
 
@@ -228,9 +242,9 @@ def _start(attributes):
         resp = conn.request_post(uri, body=body, headers=headers)
         status = resp[u'headers']['status']
         if status == '200' or status == '304' or status == '202':
-            print "vm demarree et get_status vaut", _get_status(attributes)
+            log.info("VM started up and its status is %s" % _get_status(attributes))
         else:
-            print 'Error http status code: ',status
+            log.error("_reboot: Bad HTTP return code: %s" % status)
 
     else:
         raise ResourceException("The VM must be suspended")
@@ -258,32 +272,12 @@ def _shutdown(attributes):
         resp = conn.request_post(uri, body=body, headers=headers)
         status = resp[u'headers']['status']
         if status == '200' or status == '304' or status == '202':
-            print "vm suspendue et get_status vaut", _get_status(attributes)
+            log.info("VM shutted down and its status is %s" % _get_status(attributes))
         else:
-            print 'Error http status code: ',status
+            log.error("_reboot: Bad HTTP return code: %s" % status)
 
     else:
         raise ResourceException("The VM must be running")
-
-    return _get_status(attributes)
-
-#-----------------------------------------------------------------------------
-
-def _shutoff(attributes):
-    '''
-    Shuts off a VM.
-
-    @param attributes: the dictionary of the attributes that will be used to
-                        shutoff a virtual machine
-    @type attributes: dict
-    '''
-    vm = _get_VM(attributes)
-
-    '''if vm.isActive() == 1:
-        vm.destroy()
-
-    else:
-        raise ResourceException("The VM is not running")'''
 
     return _get_status(attributes)
 
@@ -308,9 +302,9 @@ def _reboot(attributes):
         resp = conn.request_post(uri, body=body, headers=headers)
         status = resp[u'headers']['status']
         if status == '200' or status == '304' or status == '202':
-            print "vm suspendue et get_status vaut", _get_status(attributes)
+            log.info("VM is rebooting and its status is %s" % _get_status(attributes))
         else:
-            print 'Error http status code: ',status
+            log.error("_reboot: Bad HTTP return code: %s" % status)
 
     else:
         raise ResourceException("The VM must be running")
@@ -338,9 +332,9 @@ def _pause(attributes):
         resp = conn.request_post(uri, body=body, headers=headers)
         status = resp[u'headers']['status']
         if status == '200' or status == '304' or status == '202':
-            print "vm mise en pause et get_status vaut", _get_status(attributes)
+            log.info("VM is paused and its status is %s" % _get_status(attributes))
         else:
-            print 'Error http status code: ',status
+            log.error("_pause: Bad HTTP return code: %s" % status)
 
     else:
         raise ResourceException("The VM must be running")
@@ -367,9 +361,9 @@ def _resume(attributes):
         resp = conn.request_post(uri, body=body, headers=headers)
         status = resp[u'headers']['status']
         if status == '200' or status == '304' or status == '202':
-            print "vm sortie de pause et get_status vaut", _get_status(attributes)
+            log.info("VM is unpaused and status is %s" % _get_status(attributes))
         else:
-            print 'Error http status code: ',status
+            log.error("_resume: Bad HTTP return code: %s" % status)
 
     else:
         raise ResourceException("The VM must be paused")

@@ -139,6 +139,14 @@ class CloudmanagersController(ResourcesController):
                         status['vm_vcpus'] = module._get_vcpus(attributes)
                     except ResourceException, ex:
                         status['vm_vcpus'] = str(ex)
+                        
+                    try:
+                        vm = module._get_VM(attributes)
+                        vm_id = vm['id']
+                        flavor = module._get_flavor(attributes, vm['id'])
+                        status['vm_flavor'] = flavor['id']
+                    except ResourceException, ex:
+                        status['vm_flavor'] = str(ex)
                     
                     status['vm_vnc_port'] = module._get_vnc_port(attributes)
                     
@@ -301,13 +309,8 @@ class CloudmanagersController(ResourcesController):
                             current_flavor = module._get_flavor(attributes, vm_id)
                             new_flavor = attributes["flavor"]
                             
-                            # Check if the current flavor is not equal to the required one
-                            if current_flavor["id"] != new_flavor:
-                                flavor_dict = module._set_flavor(attributes, vm_id, new_flavor)
-                                status['vm_flavor'] = flavor_dict["id"]
-                            else:
-                                flavor_dict = module._get_flavor(attributes, vm_id)
-                                status['vm_flavor'] = flavor_dict["id"]
+                            flavor_dict = module._set_flavor(attributes, vm_id, current_flavor["id"], new_flavor)
+                            status['vm_flavor'] = flavor_dict["id"]
                                 
                 # If there was an error during the update operations
                 except ResourceException, ex:
