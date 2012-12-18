@@ -190,4 +190,4 @@ class FilesController(ResourcesController):
             except TypeError, err:
                 raise ResourceException("Can't b64decode: %s" % err)
 
-        return content or ''
+        return content
