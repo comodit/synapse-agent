@@ -83,7 +83,7 @@ class Dispatcher(object):
                 }
         try:
             transports[self.transport]()
-        except (AttributeError, KeyError), err:
+        except KeyError as err:
             self.logger.error("Transport unknown. [%s]" % err)
             self.stop_synapse()
             sys.exit()
@@ -100,7 +100,7 @@ class Dispatcher(object):
                 try:
                     self.amqpadmin.connect()
                     break
-                except (socket.timeout, IOError) as err:
+                except (socket.timeout, IOError, AttributeError) as err:
                     self.logger.error(err)
                     try:
                         self.logger.debug("Sleeping %d sec" % retry_timeout)
@@ -130,7 +130,7 @@ class Dispatcher(object):
             while not self.force_close:
                 try:
                     self.amqpsynapse.connect()
-                except (AmqpError, IOError) as err:
+                except (AmqpError, IOError, AttributeError) as err:
                     self.logger.error(err)
                     try:
                         self.logger.debug("Sleeping %d sec" % retry_timeout)
