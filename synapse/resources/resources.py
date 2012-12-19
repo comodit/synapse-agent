@@ -340,13 +340,29 @@ class ResourcesController(object):
                       'msg_type': msg_type,
                       'timestamp': timestamp}
 
-        if last_alert:
-            delta = datetime.datetime.now() - last_alert
-            if delta > datetime.timedelta(seconds=self.alert_interval) or b2c:
+        # If the resource is back to compliance
+        if b2c:
+            self.publish_queue.put((headers, compliance))
+            if 'last_alert' in state:
+                del state['last_alert']
+                self.persister.persist(state)
+            self.logger.info("[COMPLIANCE] [%s] %s is BACK to "
+                             "compliance" % (compliance['collection'],
+                                             compliance['id']))
+        elif not compliant:
+            if last_alert:
+                delta = datetime.datetime.now() - last_alert
+                if delta > datetime.timedelta(seconds=self.alert_interval):
+                    state['last_alert'] = datetime.datetime.now()
+                    self.persister.persist(state)
+                    self.publish_queue.put((headers, compliance))
+                    self.logger.info("[COMPLIANCE] [%s] %s is NOT compliant" %
+                                     (compliance['collection'],
+                                      compliance['id']))
+            else:
                 state['last_alert'] = datetime.datetime.now()
                 self.persister.persist(state)
                 self.publish_queue.put((headers, compliance))
-        else:
-            state['last_alert'] = datetime.datetime.now()
-            self.persister.persist(state)
-            self.publish_queue.put((headers, compliance))
+                self.logger.info("[COMPLIANCE] [%s] %s is NOT compliant" %
+                                 (compliance['collection'],
+                                  compliance['id']))
