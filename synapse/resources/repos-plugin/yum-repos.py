@@ -100,6 +100,9 @@ def create_repo(name, attributes):
         config_parser.add_section(name)
         config_parser.set(name, "name", name)
 
+    # Set gpgcheck to 0 by default to bypass some issues
+    config_parser.set(name, 'gpgcheck', 0)
+
     # Update the section with not None fields provided by the user
     for key, value in attributes.items():
         if value is not None and key in values:
