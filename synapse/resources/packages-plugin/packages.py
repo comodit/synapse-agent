@@ -1,4 +1,3 @@
-from synapse.synapse_exceptions import ResourceException
 from synapse.resources.resources import ResourcesController
 from synapse.logger import logger
 
