@@ -169,6 +169,10 @@ class ResourcesController(object):
 
         return response
 
+    def add_job(self, interval):
+        if self.scheduler:
+            self.scheduler.add_job(self.monitor, interval)
+
     def watch(self):
         if self.scheduler:
             try:

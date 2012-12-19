@@ -32,7 +32,7 @@ class HostsController(ResourcesController):
 
     def watch(self):
         interval = self._get_monitor_interval()
-        self.scheduler.add_job(self.monitor, interval)
+        self.add_job(interval)
 
     def monitor(self):
         """Sends hosts infos regularly."""
