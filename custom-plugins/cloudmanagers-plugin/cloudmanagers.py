@@ -213,7 +213,8 @@ class CloudmanagersController(ResourcesController):
                     'name': attributes['name'],
                     'flavor': attributes.get('flavor', ""),
                     'image': attributes.get('image', ""),
-                    'key': attributes.get('key', "")
+                    'key': attributes.get('key', ""),
+                    'user-data': attributes.get('user-data', "")
                 }
                 
                 self.logger.debug("VM details: %s" % dict_vm)
@@ -523,7 +524,6 @@ class CloudmanagersController(ResourcesController):
                 cm_util.VM_STATE_RUNNING: self._run_vm(res_id, attributes),
                 cm_util.VM_STATE_PAUSED: module._pause,
                 cm_util.VM_STATE_SHUTDOWN: module._shutdown,
-                cm_util.VM_STATE_SHUTOFF: module._shutoff,
                 cm_util.VM_STATE_REBOOTING: module._reboot,
                 cm_util.VM_STATE_RESUME: module._resume
             }[attributes['status']]

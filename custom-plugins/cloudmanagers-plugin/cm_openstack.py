@@ -152,7 +152,7 @@ def _init_cloudmanager_attributes(res_id, attributes):
 def _create_VM(res_id, attributes, dict_vm):
     conn_nova = Connection(attributes["cm_nova_url"], username="", password="")
     tenant_id, x_auth_token = _get_keystone_tokens(attributes)
-    body = '{"server": {"name":"'+ dict_vm['name'].encode() + '", "imageRef":"' + dict_vm['image'].encode() + '", "key_name": "' + dict_vm['key'].encode() + '", "flavorRef":"' + dict_vm['flavor'] + '", "max_count": 1, "min_count": 1, "security_groups": [{"name": "default"}]}}'
+    body = '{"server": {"name":"'+ dict_vm['name'].encode() + '", "imageRef":"' + dict_vm['image'].encode() + '", "key_name": "' + dict_vm['key'].encode() + '", "user_data":"' + dict_vm['user-data'] + '", "flavorRef":"' + dict_vm['flavor'] + '", "max_count": 1, "min_count": 1, "security_groups": [{"name": "default"}]}}'
     headers = {"Content-type": "application/json", "x-auth-token": x_auth_token.encode()}
     uri = tenant_id + "/servers"
     resp = conn_nova.request_post(uri, body=body, headers=headers)
