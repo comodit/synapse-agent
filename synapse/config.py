@@ -1,3 +1,9 @@
+'''
+Config file can be empty, default values will prevail.
+Priority rules: command line > config file > default
+Give possibility to change name (e.g. synapse to comodit-agent)
+Give possibility to use custom config file
+'''
 import os
 import sys
 import uuid

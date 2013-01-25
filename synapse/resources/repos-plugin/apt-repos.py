@@ -18,9 +18,13 @@ def get_repos(name, details=False):
     return repos
 
 
+def normalize(name):
+    return name.lower().replace(" ", "_")
+
 def create_repo(name, attributes={}):
     # Initialize the repo dictionnary
     repo = {}
+    name = normalize(name)
     repo_file = os.path.join(src_dir, name + '.list')
 
     # If the file already exists, load repo into a dict
@@ -83,6 +87,7 @@ def _full_entry(entry):
 
 def delete_repo(name, attributes):
     repo = {}
+    name = normalize(name)
     repo_file = os.path.join(src_dir, name + '.list')
 
     # If the file already exists, load repo into a dict
