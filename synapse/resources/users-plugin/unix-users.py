@@ -40,19 +40,19 @@ def user_add(name, password, login_group, groups,
     cmd = ['/usr/sbin/useradd']
 
     if login_group:
-        cmd += ['-g', login_group]
+        cmd += ['-g', '%s' % login_group]
     if len(groups):
         cmd += ['-G', ','.join(groups)]
     if homedir:
-        cmd += ['--home', homedir]
+        cmd += ['--home', '%s' % homedir]
     if comment:
-        cmd += ['--comment', comment]
+        cmd += ['--comment', '%s' % comment]
     if uid:
-        cmd += ['--uid', uid]
+        cmd += ['--uid', '%s' % uid]
     if gid:
-        cmd += ['--gid', gid]
+        cmd += ['--gid', '%s' % gid]
     if shell:
-        cmd += ['--shell', shell]
+        cmd += ['--shell', '%s' % shell]
 
     cmd.append(name)
 
@@ -95,21 +95,21 @@ def user_mod(name, password, login_group, groups, homedir, move_home,
 
         cmd = ["/usr/sbin/usermod"]
         if login_group:
-            cmd += ['-g', login_group]
+            cmd += ['-g', '%s' % login_group]
         if len(groups):
             cmd += ['-G', ','.join(groups)]
         if homedir:
-            cmd += ['--home', homedir]
+            cmd += ['--home', '%s' % homedir]
         if homedir and move_home:
             cmd += ['--move-home']
         if comment:
-            cmd += ['--comment', comment]
+            cmd += ['--comment', '%s' % comment]
         if uid:
-            cmd += ['--uid', uid]
+            cmd += ['--uid', '%s' % uid]
         if gid:
-            cmd += ['--gid', gid]
+            cmd += ['--gid', '%s' % gid]
         if shell:
-            cmd += ['--shell', shell]
+            cmd += ['--shell', '%s' % shell]
 
         cmd.append(name)
 
