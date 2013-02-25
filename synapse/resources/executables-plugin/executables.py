@@ -22,6 +22,8 @@ class ExecutablesController(ResourcesController):
         #exec_status = self.module.exec_threaded_cmd(res_id)
         self.logger.info("Executing: %s" % res_id)
         exec_status = exec_cmd(res_id)
+        if exec_status['returncode'] != 0:
+            raise ResourceException(exec_status['stderr'])
         self.response = self.set_response(exec_status)
         self.logger.info("Done executing '%s'" % res_id)
 
