@@ -1,4 +1,3 @@
-from synapse.synapse_exceptions import ResourceException
 from synapse.resources.resources import ResourcesController
 from synapse.logger import logger
 
@@ -12,7 +11,7 @@ class GroupsController(ResourcesController):
         return self.module.get_group_infos(res_id)
 
     def create(self, res_id=None, attributes=None):
-        gid = attributes.get("gid")
+        gid = "%s" % attributes.get("gid")
         self.comply(name=res_id, present=True, gid=gid)
         self.module.group_add(res_id, gid)
 
@@ -20,11 +19,13 @@ class GroupsController(ResourcesController):
 
     def update(self, res_id=None, attributes={}):
         new_name = attributes.get('new_name')
-        gid = attributes.get('gid')
+        gid = "%s" % attributes.get('gid')
         monitor = attributes.get('monitor')
 
         self.comply(name=new_name, present=True, gid=gid, monitor=monitor)
-
+        if monitor is False:
+            self.comply(monitor=False)
+            return self.module.get_group_infos(res_id)
 
         if self.module.exists(res_id):
             if new_name or gid:
