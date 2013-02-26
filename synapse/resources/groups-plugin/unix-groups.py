@@ -39,7 +39,7 @@ def group_add(name, gid):
     cmd = ["/usr/sbin/groupadd"]
 
     if gid:
-        cmd += ['--gid', gid]
+        cmd += ['--gid', "%s" % gid]
 
     cmd.append(name)
 
@@ -54,10 +54,10 @@ def group_mod(name, new_name, gid):
     cmd = ["/usr/sbin/groupmod"]
 
     if new_name:
-        cmd += ['--new-name', new_name]
+        cmd += ['--new-name', "%s" % new_name]
 
     if gid:
-        cmd += ['--gid', gid]
+        cmd += ['--gid', "%s" % gid]
 
     cmd.append(name)
 
