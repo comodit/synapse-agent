@@ -24,8 +24,7 @@ class GroupsController(ResourcesController):
 
         self.comply(name=new_name, present=True, gid=gid, monitor=monitor)
         if monitor is False:
-            self.comply(monitor=False)
-            return self.module.get_group_infos(res_id)
+            return self.comply(monitor=False)
 
         if self.module.exists(res_id):
             if new_name or gid:

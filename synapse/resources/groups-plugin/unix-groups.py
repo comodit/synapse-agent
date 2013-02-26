@@ -28,7 +28,7 @@ def format_group_info(name):
         d["present"] = True
         d["name"] = gr.gr_name
         d["members"] = gr.gr_mem
-        d["gid"] = gr.gr_gid
+        d["gid"] = str(gr.gr_gid)
     except KeyError:
         d["present"] = False
 

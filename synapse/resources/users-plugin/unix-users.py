@@ -20,8 +20,8 @@ def get_user_infos(name):
     try:
         pw = pwd.getpwnam(name)
         d["present"] = True
-        d["gid"] = pw.pw_gid
-        d["uid"] = pw.pw_uid
+        d["gid"] = str(pw.pw_gid)
+        d["uid"] = str(pw.pw_uid)
         d["name"] = pw.pw_name
         d["homedir"] = pw.pw_dir
         d["shell"] = pw.pw_shell
@@ -142,7 +142,7 @@ def get_group_infos(name):
         d = {}
         d["name"] = gr.gr_name
         d["members"] = gr.gr_mem
-        d["gid"] = gr.gr_gid
+        d["gid"] = str(gr.gr_gid)
         return d
 
     except KeyError:

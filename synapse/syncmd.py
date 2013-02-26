@@ -8,17 +8,13 @@ try:
 except ImportError:
     from queue import Queue, Empty
 
-from synapse.logger import logger
 
 ON_POSIX = 'posix' in sys.builtin_module_names
 __STDOUTBUF__ = ''
 
-log = logger(__name__)
-
 
 def exec_cmd(cmd):
     ret = {}
-    log.debug("[COMMAND] Executing \"%s\"" % cmd)
     proc = Popen(cmd,
                  shell=True,
                  stdout=PIPE,

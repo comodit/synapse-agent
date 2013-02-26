@@ -1,6 +1,5 @@
 import re
 
-from synapse.synapse_exceptions import ResourceException
 from synapse.resources.resources import ResourcesController
 from synapse.logger import logger
 
@@ -19,8 +18,8 @@ class UsersController(ResourcesController):
         groups = self.sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir') or '/home/%s' % res_id
         comment = attributes.get('full_name')
-        uid = attributes.get('uid')
-        gid = attributes.get('gid')
+        uid = "%s" % attributes.get('uid')
+        gid = "%s" % attributes.get('gid')
         shell = attributes.get('shell')
 
         self.module.user_add(res_id, password, login_group, groups, 
@@ -40,19 +39,20 @@ class UsersController(ResourcesController):
 
     def update(self, res_id=None, attributes=None):
 
+        monitor = attributes.get('monitor')
+        if monitor is False:
+            self.comply(monitor=False)
+            return "%s unmonitored" % res_id
+
         password = attributes.get("password")
         login_group = attributes.get("login_group")
         groups = self.sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir')
         move_home = attributes.get('move_home')
         comment = attributes.get('full_name')
-        uid = attributes.get('uid')
-        gid = attributes.get('gid')
+        uid = "%s" % attributes.get('uid')
+        gid = "%s" % attributes.get('gid')
         shell = attributes.get('shell')
-        monitor = attributes.get('monitor')
-        if monitor is False:
-            self.comply(monitor=False)
-            return "%s unmonitored" % res_id
 
         if self.module.user_exists(res_id):
             self.module.user_mod(res_id, password, login_group, groups,
