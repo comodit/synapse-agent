@@ -50,6 +50,9 @@ class UsersController(ResourcesController):
         gid = attributes.get('gid')
         shell = attributes.get('shell')
         monitor = attributes.get('monitor')
+        if monitor is False:
+            self.comply(monitor=False)
+            return "%s unmonitored" % res_id
 
         if self.module.user_exists(res_id):
             self.module.user_mod(res_id, password, login_group, groups,
