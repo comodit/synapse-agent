@@ -80,6 +80,7 @@ class Amqp(object):
         # Connection and channel initialization
         self.connection = None
         self.channel = None
+        self._message_number = 0
 
         # Plain credentials
         credentials = PlainCredentials(self.username, self.password)
@@ -125,8 +126,9 @@ class Amqp(object):
             self.parameters = pika.ConnectionParameters(**pika_options)
 
     def connect(self):
-        SelectPoller.TIMEOUT = .1
+        #SelectPoller.TIMEOUT = .1
         self.connection = SelectConnection(self.parameters, self.on_connected)
+        self._message_number = 0
         self.connection.ioloop.start()
 
     def close(self, amqperror=False):
@@ -195,6 +197,7 @@ class AmqpSynapse(Amqp):
         super(AmqpSynapse, self).__init__(conf)
         self.publish_queue = publish_queue
         self.tasks_queue = tasks_queue
+        self._deliveries = {}
 
     def on_channel_open(self, channel):
         """Callback for when the channel is opened. Once the channel is opened,
@@ -211,12 +214,22 @@ class AmqpSynapse(Amqp):
         self.logger.info(msg)
 
         self.channel = channel
+
+        self.channel.confirm_delivery(callback=self.on_confirm_delivery)
+
         self.channel.add_on_close_callback(self.on_remote_close)
         self.channel.basic_consume(consumer_callback=self.handle_delivery,
                                    queue=self.queue)
         self.logger.debug("Consuming on queue %s" % self.queue)
-        self.publish_timeout_id = self.connection.add_timeout(
-            1, lambda: self._publisher())
+        self.connection.add_timeout(1, self._publisher)
+        self.connection.add_timeout(1, self._redeliverer)
+
+    def on_confirm_delivery(self, tag):
+        self.logger.info("DELIVERED: %s" % tag)
+        try:
+            del self._deliveries[tag.method.delivery_tag]
+        except:
+            pass
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
         self.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
@@ -229,6 +242,16 @@ class AmqpSynapse(Amqp):
         else:
             self.logger.warning("This message was redelivered. Won't process.")
 
+
+    def _redeliverer(self):
+        try:
+            key, msg = self._deliveries.popitem()
+            self.logger.warning("REDELIVERING %s" % key)
+            self._handle_publish(msg["headers"], msg["item"])
+        except KeyError:
+            pass
+
+        self.connection.add_timeout(1, self._redeliverer)
 
     def _publisher(self):
         """This callback is used to check at regular interval if there's any
@@ -244,7 +267,7 @@ class AmqpSynapse(Amqp):
             except Empty:
                 pass
 
-        self.connection.add_timeout(.1, lambda: self._publisher())
+        self.connection.add_timeout(.1, self._publisher)
 
     def _handle_publish(self, headers={}, item={}):
         """This method actually publishes the item to the broker after
@@ -254,6 +277,7 @@ class AmqpSynapse(Amqp):
         exchange = ''
         reply_to = ''
         props = {}
+
         try:
             if 'headers' in headers:
                 exchange = headers['headers'].get('reply_exchange', '')
@@ -270,14 +294,16 @@ class AmqpSynapse(Amqp):
         properties = pika.BasicProperties(**props)
 
         self.logger.debug('Publishing into exchange [%s] with routing '
-                          'key [%s]' % (exchange, reply_to))
-        self.logger.debug('Message:\n' + pformat(item, width=80))
+                          'key [%s]: %s' % (exchange, reply_to, item))
 
         if exchange or reply_to:
             self.channel.basic_publish(exchange=exchange,
                                        routing_key=reply_to,
                                        properties=properties,
                                        body=json.dumps(item))
+            self._message_number += 1
+            self._deliveries[self._message_number] = {"headers": headers,
+                                                      "item": item}
         else:
             self.logger.warning("This message has no information about how "
                                 "to be routed to RabbitMQ. Won't publish.")
