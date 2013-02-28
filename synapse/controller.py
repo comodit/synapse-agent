@@ -8,6 +8,7 @@ from synapse.resource_locator import ResourceLocator
 from synapse.config import config
 from synapse import permissions
 from synapse.logger import logger
+from synapse.task import PublishTask
 
 
 @logger
@@ -17,7 +18,7 @@ class Controller(Thread):
     objects and to call their generic "process" method.
     '''
 
-    def __init__(self, scheduler=None, tasks_queue=None, publish_queue=None):
+    def __init__(self, scheduler=None, tq=None, pq=None):
 
         self.logger.debug("Initializing the controller...")
         Thread.__init__(self, name="CONTROLLER")
@@ -30,14 +31,14 @@ class Controller(Thread):
             raise SystemExit
 
         self.uuid = config.rabbitmq['uuid']
-        self.tasks_queue = tasks_queue
-        self.publish_queue = publish_queue
-        self.locator = ResourceLocator(scheduler, publish_queue)
+        self.tq = tq
+        self.pq = pq
+        self.locator = ResourceLocator(scheduler, pq)
         self.logger.debug("Controller successfully initialized.")
 
     def close(self):
         try:
-            self.tasks_queue.put("stop")
+            self.tq.put("stop")
             for resource in self.locator.get_instance().itervalues():
                 resource.close()
         except ResourceException, e:
@@ -54,20 +55,13 @@ class Controller(Thread):
 
         response = {}
         while True:
-            item = self.tasks_queue.get(True, 60 * 60 * 24 * 365 * 1000)
+            task = self.tq.get(True, 60 * 60 * 24 * 365 * 1000)
 
-            if item == "stop":
+            if task == "stop":
                 break
 
-            task = None
-            headers = None
             try:
-                headers = item[0]
-                task = json.loads(item[1])
-                user_id = headers['user_id'] or ''
-                response = self.call_method(user_id, task)
-            except (TypeError, ValueError):
-                self.logger.debug('{0}'.format(traceback.format_exc()))
+                response = self.call_method(task.user_id, task.body)
 
             except ResourceException as err:
                 self.logger.error("%s" % err)
@@ -81,7 +75,8 @@ class Controller(Thread):
                 self.logger.debug('{0}'.format(traceback.format_exc()))
 
             finally:
-                self.publish_queue.put((headers, response))
+                pt = PublishTask(task.headers, response)
+                self.pq.put(pt)
 
     def call_method(self, user_id, body, check_perm=True):
         """Reads the collection the message needs to reach and then calls the

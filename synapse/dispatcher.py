@@ -37,8 +37,8 @@ class Dispatcher(object):
 
         # These queues will be shared between the controller and the
         # transport and are used for incoming tasks and responses
-        self.publish_queue = Queue()
-        self.tasks_queue = Queue()
+        self.pq = Queue()
+        self.tq = Queue()
 
     def stop(self, signum, frame):
         """This method handles SIGINT and SIGTERM signals. """
@@ -98,7 +98,7 @@ class Dispatcher(object):
             self.amqpadmin = AmqpAdmin(config.rabbitmq)
             while not self.force_close:
                 try:
-                    self.amqpadmin.connect()
+                    self.amqpadmin.run()
                     break
                 except (socket.timeout, IOError, AttributeError) as err:
                     self.logger.error(err)
@@ -116,8 +116,8 @@ class Dispatcher(object):
 
             self.sched = SynSched()
             self.controller = Controller(scheduler=self.sched,
-                                         tasks_queue=self.tasks_queue,
-                                         publish_queue=self.publish_queue)
+                                         tq=self.tq,
+                                         pq=self.pq)
             # Start the controller
             self.controller.start()
 
@@ -125,11 +125,11 @@ class Dispatcher(object):
             self.sched.start()
 
             self.amqpsynapse = AmqpSynapse(config.rabbitmq,
-                                           publish_queue=self.publish_queue,
-                                           tasks_queue=self.tasks_queue)
+                                           pq=self.pq,
+                                           tq=self.tq)
             while not self.force_close:
                 try:
-                    self.amqpsynapse.connect()
+                    self.amqpsynapse.run()
                 except (AmqpError, IOError, AttributeError) as err:
                     self.logger.error(err)
                     try:

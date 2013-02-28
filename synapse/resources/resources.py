@@ -7,6 +7,7 @@ import datetime
 from synapse.synapse_exceptions import ResourceException
 from synapse.config import config
 from synapse.logger import logger
+from synapse.task import PublishTask
 
 
 synapse_version = "Undefined"
@@ -280,7 +281,7 @@ class ResourcesController(object):
                   'msg_type': 'status',
                   'version': synapse_version}
 
-        self.publish_queue.put((headers, status))
+        self.publish_queue.put(PublishTask(headers, status))
 
     def _set_headers(self):
         return {'headers': {'reply_exchange': self.status_exchange},
@@ -346,7 +347,7 @@ class ResourcesController(object):
 
         # If the resource is back to compliance
         if b2c:
-            self.publish_queue.put((headers, compliance))
+            self.publish_queue.put(PublishTask(headers, compliance))
             if 'last_alert' in state:
                 del state['last_alert']
                 self.persister.persist(state)
@@ -359,14 +360,14 @@ class ResourcesController(object):
                 if delta > datetime.timedelta(seconds=self.alert_interval):
                     state['last_alert'] = datetime.datetime.now()
                     self.persister.persist(state)
-                    self.publish_queue.put((headers, compliance))
+                    self.publish_queue.put(PublishTask(headers, compliance))
                     self.logger.info("[COMPLIANCE] [%s] %s is NOT compliant" %
                                      (compliance['collection'],
                                       compliance['id']))
             else:
                 state['last_alert'] = datetime.datetime.now()
                 self.persister.persist(state)
-                self.publish_queue.put((headers, compliance))
+                self.publish_queue.put(PublishTask(headers, compliance))
                 self.logger.info("[COMPLIANCE] [%s] %s is NOT compliant" %
                                  (compliance['collection'],
                                   compliance['id']))

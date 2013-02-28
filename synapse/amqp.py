@@ -1,9 +1,7 @@
 import time
 import pika
-import json
 
 from Queue import Empty
-from pprint import pformat
 from ssl import CERT_REQUIRED
 
 from pika.adapters import SelectConnection
@@ -11,6 +9,7 @@ from pika.adapters.select_connection import SelectPoller
 from pika import PlainCredentials
 
 from synapse.logger import logger
+from synapse.task import Task
 
 
 class ExternalCredentials(PlainCredentials):
@@ -78,9 +77,10 @@ class Amqp(object):
         self.vhost = conf['vhost']
 
         # Connection and channel initialization
-        self.connection = None
-        self.channel = None
+        self._connection = None
+        self._channel = None
         self._message_number = 0
+        self._deliveries = {}
 
         # Plain credentials
         credentials = PlainCredentials(self.username, self.password)
@@ -125,21 +125,23 @@ class Amqp(object):
 
             self.parameters = pika.ConnectionParameters(**pika_options)
 
-    def connect(self):
-        #SelectPoller.TIMEOUT = .1
-        self.connection = SelectConnection(self.parameters, self.on_connected)
+    def run(self):
+        self._connection = self.connect()
         self._message_number = 0
-        self.connection.ioloop.start()
+        self._connection.ioloop.start()
+
+    def connect(self):
+        return SelectConnection(self.parameters, self.on_connection_open)
 
     def close(self, amqperror=False):
-        if (self.connection and not self.connection.closing
-            and not self.connection.closed):
+        if (self._connection and not self._connection.closing
+            and not self._connection.closed):
 
             self.logger.debug("Closing connection")
-            self.connection.close()
-            #self.connection.ioloop.start()
+            self._connection.close()
+            #self._connection.ioloop.start()
 
-    def on_remote_close(self, code, text):
+    def on_channel_close(self, code, text):
         self.logger.debug("Remote channel close, code %d" % code)
         time.sleep(2)
         if code != 200:
@@ -147,163 +149,128 @@ class Amqp(object):
             raise AmqpError(text)
 
     def on_connection_closed(self, frame):
-        self.connection.ioloop.stop()
+        self._connection.ioloop.stop()
 
-    def on_connected(self, connection):
-        self.connection = connection
-        self.connection.add_on_close_callback(self.on_connection_closed)
-        self.connection.channel(self.on_channel_open)
+    def on_connection_open(self, connection):
+        self.add_on_connection_close_callback()
+        self.open_channel()
+
+    def open_channel(self):
+        self._connection.channel(self.on_channel_open)
+
+    def add_on_connection_close_callback(self):
+        self._connection.add_on_close_callback(self.on_connection_closed)
+
+    def add_on_channel_close_callback(self):
+        self._channel.add_on_close_callback(self.on_channel_close)
+
+    def on_channel_open(self, channel):
+        self._channel = channel
+        self.add_on_channel_close_callback()
+        self.setup()
 
 
 class AmqpAdmin(Amqp):
-    def on_channel_open(self, channel):
+    def setup(self):
         """Callback for when the channel is opened. Once the channel is opened,
         it's time to add a callback to check the publish queue and a callback
         for channel errors.
         """
 
-        self.channel = channel
-        self.channel.add_on_close_callback(self.on_remote_close)
-        self.channel.queue_declare(queue=self.queue, durable=True,
+        self._channel.queue_declare(queue=self.queue, durable=True,
                                    exclusive=False, auto_delete=False,
                                    callback=self.on_queue_declared)
 
     def on_queue_declared(self, frame):
-        self.channel.exchange_declare(exchange=self.status_exchange,
+        self._channel.exchange_declare(exchange=self.status_exchange,
                                       durable=True,
                                       type='fanout',
                                       callback=self.on_exchange_declared)
 
     def on_exchange_declared(self, frame):
-        self.channel.exchange_declare(exchange=self.exchange, durable=True,
+        self._channel.exchange_declare(exchange=self.exchange, durable=True,
                                       type='fanout',
                                       callback=self.on_st_exchange_declared)
 
     def on_st_exchange_declared(self, frame):
-        self.channel.queue_bind(exchange=self.exchange, queue=self.queue,
+        self._channel.queue_bind(exchange=self.exchange, queue=self.queue,
                                 callback=self.on_queue_bound)
 
     def on_queue_bound(self, frame):
         self.close()
 
-    def on_remote_close(self, code, text):
+    def on_channel_close(self, code, text):
         if code != 200:
             self.logger.warning(text)
-            self.connection.add_timeout(.25, self.close)
+            self._connection.add_timeout(.25, self.close)
 
 
 class AmqpSynapse(Amqp):
-    def __init__(self, conf, publish_queue=None, tasks_queue=None):
+    def __init__(self, conf, pq=None, tq=None):
         super(AmqpSynapse, self).__init__(conf)
-        self.publish_queue = publish_queue
-        self.tasks_queue = tasks_queue
-        self._deliveries = {}
+        self.pq = pq
+        self.tq = tq
 
-    def on_channel_open(self, channel):
+    def setup(self):
         """Callback for when the channel is opened. Once the channel is opened,
         it's time to add a callback to check the publish queue and a callback
         for channel errors.
         """
+        self.start_publishing()
+        self.start_consuming()
 
-        msg = "Connected to RabbitMQ on %s" % self.host
-        if self.use_ssl:
-            msg += ":%s with SSL" % self.ssl_port
-        else:
-            msg += ":%s" % self.port
+    def start_publishing(self):
+        self._channel.confirm_delivery(callback=self.on_confirm_delivery)
+        self._connection.add_timeout(1, self._publisher)
 
-        self.logger.info(msg)
-
-        self.channel = channel
-
-        self.channel.confirm_delivery(callback=self.on_confirm_delivery)
-
-        self.channel.add_on_close_callback(self.on_remote_close)
-        self.channel.basic_consume(consumer_callback=self.handle_delivery,
-                                   queue=self.queue)
+    def start_consuming(self):
+        self._consumer_tag = self._channel.basic_consume(
+            consumer_callback=self.handle_delivery, queue=self.queue)
         self.logger.debug("Consuming on queue %s" % self.queue)
-        self.connection.add_timeout(1, self._publisher)
-        self.connection.add_timeout(1, self._redeliverer)
 
     def on_confirm_delivery(self, tag):
-        self.logger.info("DELIVERED: %s" % tag)
+        self.logger.info("DELIVERED: %s" % tag.method.delivery_tag)
         try:
             del self._deliveries[tag.method.delivery_tag]
         except:
             pass
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
-        self.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-        self.logger.debug("Header Frame: %s" % header_frame)
-        self.logger.debug("Method Frame: %s" % method_frame)
-        self.logger.debug("Body: %s" % body)
-
-        if not method_frame.redelivered:
-            self.tasks_queue.put((vars(header_frame), body))
-        else:
-            self.logger.warning("This message was redelivered. Won't process.")
-
-
-    def _redeliverer(self):
-        try:
-            key, msg = self._deliveries.popitem()
-            self.logger.warning("REDELIVERING %s" % key)
-            self._handle_publish(msg["headers"], msg["item"])
-        except KeyError:
-            pass
-
-        self.connection.add_timeout(1, self._redeliverer)
+        self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+        task = Task(vars(header_frame), body)
+        self.tq.put(task)
 
     def _publisher(self):
         """This callback is used to check at regular interval if there's any
         message to be published to RabbitMQ.
         """
 
-        if not self.connection.close or not self.connection.closing:
+        if not self._connection.close or not self._connection.closing:
             try:
                 for i in range(5):
-                    headers, item = self.publish_queue.get(False)
-                    self._handle_publish(headers, item)
+                    pt = self.pq.get(False)
+                    self._handle_publish(pt)
 
             except Empty:
                 pass
 
-        self.connection.add_timeout(.1, self._publisher)
+        self._connection.add_timeout(.1, self._publisher)
 
-    def _handle_publish(self, headers={}, item={}):
+    def _handle_publish(self, publish_task):
         """This method actually publishes the item to the broker after
         sanitizing it from unwanted informations.
         """
+        # Put back undelivered messages in the publish queue !
+        if self._deliveries:
+            try:
+                key, pt = self._deliveries.popitem()
+                self.logger.warning("REDELIVERING %s" % key)
+                self.pq.put(pt)
+            except KeyError:
+                pass
 
-        exchange = ''
-        reply_to = ''
-        props = {}
-
-        try:
-            if 'headers' in headers:
-                exchange = headers['headers'].get('reply_exchange', '')
-
-            reply_to = headers.get('reply_to', headers.get('routing_key', ''))
-
-            props = {
-                'correlation_id': headers.get('correlation_id'),
-                'user_id': self.username or None
-            }
-        except Exception as err:
-            self.logger.error(err)
-
-        properties = pika.BasicProperties(**props)
-
-        self.logger.debug('Publishing into exchange [%s] with routing '
-                          'key [%s]: %s' % (exchange, reply_to, item))
-
-        if exchange or reply_to:
-            self.channel.basic_publish(exchange=exchange,
-                                       routing_key=reply_to,
-                                       properties=properties,
-                                       body=json.dumps(item))
-            self._message_number += 1
-            self._deliveries[self._message_number] = {"headers": headers,
-                                                      "item": item}
-        else:
-            self.logger.warning("This message has no information about how "
-                                "to be routed to RabbitMQ. Won't publish.")
+        publish_args = publish_task.get()
+        self._channel.basic_publish(**publish_args)
+        self._message_number += 1
+        self.logger.info("PUBLISHED: %s" % self._message_number)
+        self._deliveries[self._message_number] = publish_task
