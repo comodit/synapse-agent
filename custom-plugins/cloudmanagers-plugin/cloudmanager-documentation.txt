@@ -1,0 +1,95 @@
+Documentation of the cloudmanagers plugin
+
+
+The features of the plugin are sorted according to the CRUD methods they call.
+
+##########
+# Create #
+##########
+
+# Function: provision
+# Description: Launches a new VM managed by
+# Parameters:
+- name: name of the VM
+- image: the ID of the gold image as it is stored on Glance
+- key: the name of the keypair from which public key is injected at VM first boot
+- flavor: ID of the flavor type (tiny, small, ...)
+- user-data: Base64 encoded user-data, passed to CloudInit, to initialize and configure VM at first boot
+# Example:
+$ python bin/synapse-client cloudmanagers provision test_os --name test4 --image acfc705f-8e26-4b13-a139-c9d3503dc5dc --key key1 --flavor 1 --user-data IyEvYmluL2Jhc2gNCnRvdWNoIC9ob21lL3VidW50dS9jb3Vjb3U=
+#----------------------------------------------------------
+
+########
+# Read #
+########
+
+# Function: status
+# Description: behaviour changes according to parameters. If VM name is supplied, returns details about the VM. If only cloud manager is given, returns list of VM managed by this cloud manager. If listimages is given, returns a list of available gold images to boot from.
+# Parameter:
+- name: name of the VM
+- listimages: this parameter value has no impact. The plugin architecture just need a value.
+# Examples:
+$ python bin/synapse-client cloudmanagers status test_os --name test4
+$ python bin/synapse-client cloudmanagers status test_os
+$ python bin/synapse-client cloudmanagers status test_os --listimages 1
+#----------------------------------------------------------
+
+##########
+# Delete #
+##########
+
+# Function: delete
+# Description: terminates a VM
+# Parameters:
+- name: name of the VM
+# Example:
+python bin/synapse-client cloudmanagers delete test_os --name test4
+#----------------------------------------------------------
+
+##########
+# Update #
+##########
+
+# Fuction: pause
+# Description: Pauses VM execution. Should be in running state.
+# Parameters:
+- name: name of the VM
+# Example:
+$ python bin/synapse-client cloudmanagers pause test_os --name test4
+
+# Function: resume
+# Description: Unpauses VM. Should be in paused state.
+# Parameters:
+- name: name of the VM
+# Example:
+$ python bin/synapse-client cloudmanagers resume test_os --name test4
+
+# Function: shutdown
+# Description: shuts down a VM
+# Parameters:
+- name: name of the VM
+# Example:
+$ python bin/synapse-client cloudmanagers shutdown test_os --name test4
+
+# Function: start
+# Description: starts a VM
+# Parameters:
+- name: name of the VM
+# Example:
+$ python bin/synapse-client cloudmanagers start test_os --name test4
+
+# Function: reboot
+# Description: reboots a VM
+# Parameters:
+- name: name of the VM
+# Example:
+$ python bin/synapse-client cloudmanagers reboot test_os --name test4
+
+# Function: update
+# Description: resizes a VM to the specified flavor. Note: in OpenStack behaviour, the resizing process needs to steps (actual resizing, followed by confirmation). Using the synapse cloudmanagers plugin, one needs to run the update function, and then wait for the VM to be in CONFIRM_RESIZE state. The same update command should then be run again.
+# Parameters:
+- name: name of the VM
+- flavor: the destination flavor ID (tiny, small, medium, large, ...)
+# Example:
+$ python bin/synapse-client cloudmanagers update test_os --name test4 --flavor 2
+#----------------------------------------------------------
