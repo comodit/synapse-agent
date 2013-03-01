@@ -81,6 +81,10 @@ class Main(object):
         try:
             cli_args = sys.argv[1:] if parse_commandline else []
             options, args = self.parser.parse_args(cli_args)
+            loglevel = config.log['level']
+            if options.verbose:
+                loglevel = 'DEBUG'
+            self.setup_logger(loglevel)
             self.parse_commandline(options, args)
 
             # Daemonize process ?
@@ -127,7 +131,6 @@ class Main(object):
             sys.exit(-1)
 
         self.setup_transport(options)
-        self.setup_logger(options)
 
         try:
             register = config.bootstrap.get('register', False)
@@ -179,14 +182,12 @@ class Main(object):
         if options.disable:
             config.controller['ignored_resources'] = options.disable
 
-    def setup_logger(self, options):
+    def setup_logger(self, loglevel):
         # Override LOGGER options
-        if options.verbose:
-            LOGGER = logging.getLogger('synapse')
-            if 'DEBUG' in logger.LEVELS:
-                LOGGER = logging.getLogger('synapse')
-                for lgr in LOGGER.handlers:
-                    lgr.setLevel(getattr(logging, 'DEBUG'))
+        if loglevel in logger.LEVELS:
+            handlers = logging.getLogger('synapse').handlers
+            for handler in handlers:
+                handler.setLevel(getattr(logging, loglevel))
 
 
 class SynapseDaemon(Daemon):

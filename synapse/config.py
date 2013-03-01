@@ -160,7 +160,7 @@ class Config(object):
             'path': self.paths['log']
             }
 
-        conf.update(self.conf.get('logger', {}))
+        conf.update(self.conf.get('log', {}))
 
         return conf
 
