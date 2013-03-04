@@ -6,7 +6,6 @@ from synapse.config import config
 
 class Task(object):
     def __init__(self, headers, body):
-
         self.headers = headers
         self.body = self.get_body(body)
 
@@ -14,7 +13,7 @@ class Task(object):
         self.reply_exchange = self.get_reply_exchange()
         self.reply_to = self.get_reply_to()
         self.correlation_id = self.get_corr_id()
-
+        self.redeliver = True
 
     def get_user_id(self):
         return self.headers.get('user_id', '')
@@ -26,7 +25,7 @@ class Task(object):
             if isinstance(hds, dict):
                 re = hds.get('reply_exchange', '')
 
-        return re or ''
+        return re
 
     def get_reply_to(self):
         return self.headers.get('reply_to', 
@@ -37,6 +36,7 @@ class Task(object):
 
     def get_body(self, body):
         return json.loads(body)
+
 
 
 class PublishTask(Task):

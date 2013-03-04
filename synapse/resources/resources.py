@@ -281,9 +281,11 @@ class ResourcesController(object):
                   'msg_type': 'status',
                   'version': synapse_version}
 
-        self.publish_queue.put(PublishTask(headers, status))
+        pt = PublishTask(headers, status)
+        pt.redeliver = False
+        self.publish_queue.put(pt)
 
-    def _set_headers(self):
+    def _set_headers(self, redeliver=True):
         return {'headers': {'reply_exchange': self.status_exchange},
                 'routing_key': self.compliance_routing_key}
 

@@ -87,7 +87,8 @@ class Config(object):
             'status_routing_key': '',
             'compliance_routing_key': '',
             'retry_timeout': 5,
-            'heartbeat': '30'
+            'heartbeat': '30',
+            'redelivery_timeout': 10
             }
 
         conf.update(self.conf.get('rabbitmq', {}))
@@ -100,6 +101,7 @@ class Config(object):
         conf['ssl_port'] = self.sanitize_int(conf['ssl_port'])
         conf['retry_timeout'] = self.sanitize_int(conf['retry_timeout'])
         conf['heartbeat'] = self.sanitize_int(conf['heartbeat'])
+        conf['heartbeat'] = self.sanitize_int(conf['redelivery_timeout'])
         if not conf['uuid']:
             conf['uuid'] = str(uuid.uuid4())
 

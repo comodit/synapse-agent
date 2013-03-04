@@ -3,6 +3,7 @@ import pika
 
 from Queue import Empty
 from ssl import CERT_REQUIRED
+from datetime import datetime, timedelta
 
 from pika.adapters import SelectConnection
 from pika.adapters.select_connection import SelectPoller
@@ -75,6 +76,7 @@ class Amqp(object):
         self.use_ssl = conf['use_ssl']
         self.username = conf['username']
         self.vhost = conf['vhost']
+        self.redelivery_timeout = conf['redelivery_timeout']
 
         # Connection and channel initialization
         self._connection = None
@@ -131,6 +133,7 @@ class Amqp(object):
         self._connection.ioloop.start()
 
     def connect(self):
+        SelectPoller.TIMEOUT = .1
         return SelectConnection(self.parameters, self.on_connection_open)
 
     def close(self, amqperror=False):
@@ -152,6 +155,7 @@ class Amqp(object):
         self._connection.ioloop.stop()
 
     def on_connection_open(self, connection):
+        self.logger.info("Connected to %s" % self.host)
         self.add_on_connection_close_callback()
         self.open_channel()
 
@@ -222,6 +226,7 @@ class AmqpSynapse(Amqp):
     def start_publishing(self):
         self._channel.confirm_delivery(callback=self.on_confirm_delivery)
         self._connection.add_timeout(1, self._publisher)
+        self._connection.add_timeout(1, self._check_redeliveries)
 
     def start_consuming(self):
         self._consumer_tag = self._channel.basic_consume(
@@ -229,7 +234,7 @@ class AmqpSynapse(Amqp):
         self.logger.debug("Consuming on queue %s" % self.queue)
 
     def on_confirm_delivery(self, tag):
-        self.logger.info("DELIVERED: %s" % tag.method.delivery_tag)
+        self.logger.debug("[AMQP-DELIVERED] #%s" % tag.method.delivery_tag)
         try:
             del self._deliveries[tag.method.delivery_tag]
         except:
@@ -244,33 +249,39 @@ class AmqpSynapse(Amqp):
         """This callback is used to check at regular interval if there's any
         message to be published to RabbitMQ.
         """
-
         if not self._connection.close or not self._connection.closing:
             try:
                 for i in range(5):
                     pt = self.pq.get(False)
                     self._handle_publish(pt)
-
             except Empty:
                 pass
 
         self._connection.add_timeout(.1, self._publisher)
 
+    def _check_redeliveries(self):
+        # In case we have a message to redeliver, let's wait a few seconds
+        # before we actually redeliver them. This is to avoid unwanted
+        # redeliveries.
+        for key, value in self._deliveries.items():
+            if datetime.now() - value["ts"] > timedelta(
+                seconds=self.redelivery_timeout):
+                self.logger.debug("[AMQP-REPLUBLISHED] #%s: %s" %
+                                  (key, value["task"]))
+                self.pq.put(value["task"])
+                del self._deliveries[key]
+        self._connection.add_timeout(1, self._check_redeliveries)
+
     def _handle_publish(self, publish_task):
         """This method actually publishes the item to the broker after
         sanitizing it from unwanted informations.
         """
-        # Put back undelivered messages in the publish queue !
-        if self._deliveries:
-            try:
-                key, pt = self._deliveries.popitem()
-                self.logger.warning("REDELIVERING %s" % key)
-                self.pq.put(pt)
-            except KeyError:
-                pass
-
         publish_args = publish_task.get()
         self._channel.basic_publish(**publish_args)
         self._message_number += 1
-        self.logger.info("PUBLISHED: %s" % self._message_number)
-        self._deliveries[self._message_number] = publish_task
+        self.logger.debug("[AMQP-PUBLISHED] #%s: %s " %
+                         (self._message_number, publish_task.body))
+        if publish_task.redeliver:
+            self._deliveries[self._message_number] = {}
+            self._deliveries[self._message_number]["task"] = publish_task
+            self._deliveries[self._message_number]["ts"] = datetime.now()
