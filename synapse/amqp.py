@@ -241,7 +241,10 @@ class AmqpSynapse(Amqp):
             pass
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
+        self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
+                          (method_frame.delivery_tag, body))
         self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+        self.logger.debug("[AMQP-ACK] #%s" % method_frame.delivery_tag)
         task = Task(vars(header_frame), body)
         self.tq.put(task)
 
@@ -267,7 +270,7 @@ class AmqpSynapse(Amqp):
             if datetime.now() - value["ts"] > timedelta(
                 seconds=self.redelivery_timeout):
                 self.logger.debug("[AMQP-REPLUBLISHED] #%s: %s" %
-                                  (key, value["task"]))
+                                  (key, value["task"].body))
                 self.pq.put(value["task"])
                 del self._deliveries[key]
         self._connection.add_timeout(1, self._check_redeliveries)

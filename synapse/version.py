@@ -1,2 +1,2 @@
-VERSION = "1.5"
-RELEASE = "21"
+VERSION = "1.0"
+RELEASE = "0"

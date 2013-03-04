@@ -84,7 +84,7 @@ class Main(object):
             loglevel = config.log['level']
             if options.verbose:
                 loglevel = 'DEBUG'
-            self.setup_logger(loglevel)
+            self.setup_logger(loglevel.upper())
             self.parse_commandline(options, args)
 
             # Daemonize process ?

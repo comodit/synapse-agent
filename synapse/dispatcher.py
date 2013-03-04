@@ -130,7 +130,7 @@ class Dispatcher(object):
             while not self.force_close:
                 try:
                     self.amqpsynapse.run()
-                except (AmqpError, IOError, AttributeError) as err:
+                except (AmqpError, IOError, AttributeError, TypeError) as err:
                     self.logger.error(err)
                     try:
                         self.logger.debug("Sleeping %d sec" % retry_timeout)
