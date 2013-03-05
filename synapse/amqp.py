@@ -77,7 +77,6 @@ class Amqp(object):
         self.username = conf['username']
         self.vhost = conf['vhost']
         self.redelivery_timeout = conf['redelivery_timeout']
-        self._synbeats = []
 
         # Connection and channel initialization
         self._connection = None
@@ -228,7 +227,6 @@ class AmqpSynapse(Amqp):
         self._channel.confirm_delivery(callback=self.on_confirm_delivery)
         self._connection.add_timeout(1, self._publisher)
         self._connection.add_timeout(1, self._check_redeliveries)
-        self._connection.add_timeout(30, self._check_synbeats)
 
     def start_consuming(self):
         self._consumer_tag = self._channel.basic_consume(
@@ -239,10 +237,6 @@ class AmqpSynapse(Amqp):
         self.logger.debug("[AMQP-DELIVERED] #%s" % tag.method.delivery_tag)
         try:
             del self._deliveries[tag.method.delivery_tag]
-        except:
-            pass
-        try:
-            self._synbeats.remove(tag.method.delivery_tag)
         except:
             pass
 
@@ -267,11 +261,6 @@ class AmqpSynapse(Amqp):
                 pass
 
         self._connection.add_timeout(.1, self._publisher)
-
-    def _check_synbeats(self):
-        if len(self._synbeats) > 1:
-            raise AmqpError("Too many missed synbeats")
-        self._connection.add_timeout(30, self._check_redeliveries)
 
     def _check_redeliveries(self):
         # In case we have a message to redeliver, let's wait a few seconds
@@ -300,5 +289,3 @@ class AmqpSynapse(Amqp):
             self._deliveries[self._message_number] = {}
             self._deliveries[self._message_number]["task"] = publish_task
             self._deliveries[self._message_number]["ts"] = datetime.now()
-        else:
-            self._synbeats.append(self._message_number)
