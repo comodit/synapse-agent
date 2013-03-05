@@ -1,7 +1,6 @@
 import sys
 import traceback
 import time
-import threading
 import datetime
 
 from synapse.synapse_exceptions import ResourceException
@@ -56,7 +55,7 @@ class ResourcesController(object):
 
         # Use this lock to avoid unconsistent reads among threads, especially
         # the compliance/monitor one.
-        self._lock = threading.RLock()
+        self._lock = False
 
     def _get_monitor_interval(self):
         try:
@@ -104,38 +103,40 @@ class ResourcesController(object):
 
             self.logger.info(msg)
 
-        with self._lock:
-            self.response = self.set_response()
-            try:
+        self._lock = True
+        self.response = self.set_response()
+        try:
 
-                result = getattr(self, action)(res_id=self.res_id,
-                                               attributes=params)
+            result = getattr(self, action)(res_id=self.res_id,
+                                           attributes=params)
 
-                self.response = self.set_response(result)
+            self.response = self.set_response(result)
 
-                if action != 'ping':
-                    msg = "[%s] %s" % (self.__resource__.upper(),
-                                       action.capitalize())
-                    if self.res_id:
-                        msg += " '%s'" % self.res_id
-                    msg += ": OK"
-                    self.logger.info(msg)
+            if action != 'ping':
+                msg = "[%s] %s" % (self.__resource__.upper(),
+                                   action.capitalize())
+                if self.res_id:
+                    msg += " '%s'" % self.res_id
+                msg += ": OK"
+                self.logger.info(msg)
 
-            except ResourceException as err:
-                self.response = self.set_response(error='%s' % err)
-                self.logger.info("[%s] %s '%s': RESOURCE ERROR [%s]" %
-                                 (self.__resource__.upper(),
-                                  action.capitalize(),
-                                  self.res_id,
-                                  self.response['error'].rstrip('\n')))
-            except Exception as err:
-                self.response = self.set_response(error='%s' % err)
-                traceback.print_exc(file=sys.stdout)
-                self.logger.info("[%s] %s '%s': UNKNOWN ERROR [%s]" %
-                                 (self.__resource__.upper(),
-                                  action.capitalize(),
-                                  self.res_id,
-                                  self.response['error'].rstrip('\n')))
+        except ResourceException as err:
+            self.response = self.set_response(error='%s' % err)
+            self.logger.info("[%s] %s '%s': RESOURCE ERROR [%s]" %
+                             (self.__resource__.upper(),
+                              action.capitalize(),
+                              self.res_id,
+                              self.response['error'].rstrip('\n')))
+        except Exception as err:
+            self.response = self.set_response(error='%s' % err)
+            traceback.print_exc(file=sys.stdout)
+            self.logger.info("[%s] %s '%s': UNKNOWN ERROR [%s]" %
+                             (self.__resource__.upper(),
+                              action.capitalize(),
+                              self.res_id,
+                              self.response['error'].rstrip('\n')))
+        finally:
+            self._lock = False
 
         # Copy the value to return
         response = self.response
@@ -233,16 +234,17 @@ class ResourcesController(object):
                 raise ResourceException("Please provide ID")
 
     def monitor_manager(self):
+        if self._lock:
+            return
         try:
             persisted_list = getattr(self.persister, self.__resource__)
             for item in persisted_list:
                 current_state = {}
                 persisted_state = item['status']
-                with self._lock:
-                    try:
-                        current_state = self.read(res_id=item['resource_id'])
-                    except ResourceException as err:
-                        self.logger.error(err)
+                try:
+                    current_state = self.read(res_id=item['resource_id'])
+                except ResourceException as err:
+                    self.logger.error(err)
 
                 compliant = self.monitor(persisted_state, current_state)
 
