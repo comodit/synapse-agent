@@ -278,7 +278,7 @@ class AmqpSynapse(Amqp):
         # before we actually redeliver them. This is to avoid unwanted
         # redeliveries.
         for key, value in self._deliveries.items():
-            delta = datetime.now() - value
+            delta = datetime.now() - value['ts']
             task = value['task']
             if delta > timedelta(seconds=self.redelivery_timeout):
                 self.logger.debug("[AMQP-REPLUBLISHED] #%s: %s" %
