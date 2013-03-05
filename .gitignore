@@ -6,6 +6,7 @@ dist/
 deb_dist/
 devel*/
 pip.egg-info
+version.py
 *.template
 
 # Rope stuff
