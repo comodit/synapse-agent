@@ -245,8 +245,11 @@ class AmqpSynapse(Amqp):
                           (method_frame.delivery_tag, body))
         self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
         self.logger.debug("[AMQP-ACK] #%s" % method_frame.delivery_tag)
-        task = Task(vars(header_frame), body)
-        self.tq.put(task)
+        try:
+            task = Task(vars(header_frame), body)
+            self.tq.put(task)
+        except ValueError as err:
+            self.logger.error(err)
 
     def _publisher(self):
         """This callback is used to check at regular interval if there's any

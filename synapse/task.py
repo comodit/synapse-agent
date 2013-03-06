@@ -2,8 +2,10 @@ import json
 
 from pika import BasicProperties
 from synapse.config import config
+from synapse.logger import logger
 
 
+@logger
 class Task(object):
     def __init__(self, headers, body):
         self.headers = headers
@@ -16,7 +18,7 @@ class Task(object):
         self.redeliver = True
 
     def get_user_id(self):
-        return self.headers.get('user_id', '')
+        return self.headers.get('user_id', '') or ''
 
     def get_reply_exchange(self):
         re = ''
@@ -29,19 +31,25 @@ class Task(object):
 
     def get_reply_to(self):
         return self.headers.get('reply_to', 
-                                self.headers.get('routing_key', ''))
+                                self.headers.get('routing_key', '')) or ''
         
     def get_corr_id(self):
         return self.headers.get('correlation_id')
 
     def get_body(self, body):
-        return json.loads(body)
+        try:
+            return json.loads(body)
+        except:
+            raise ValueError("Bad Request.")
 
 
 
 class PublishTask(Task):
     def get_body(self, body):
-        return json.dumps(body)
+        try:
+            return json.dumps(body)
+        except:
+            raise ValueError("Bad Request.")
 
     def get_user_id(self):
         return config.rabbitmq['username'] or None
