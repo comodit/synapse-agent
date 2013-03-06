@@ -1,5 +1,11 @@
+import os
+
 from synapse.syncmd import exec_cmd
 from synapse.synapse_exceptions import ResourceException
+
+
+env_vars = {'DEBIAN_FRONTEND': 'noninteractive'}
+os.environ.update(env_vars)
 
 
 def install(name):
