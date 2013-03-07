@@ -23,6 +23,7 @@ def logger(obj):
 
 
 def setup_logging(logconf):
+    # Get log level from config file
     logging.config.fileConfig(logconf['logger_conf'])
 
 
