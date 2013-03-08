@@ -86,7 +86,7 @@ $ python bin/synapse-client cloudmanagers start test_os --name test4
 $ python bin/synapse-client cloudmanagers reboot test_os --name test4
 
 # Function: update
-# Description: resizes a VM to the specified flavor. Note: in OpenStack behaviour, the resizing process needs to steps (actual resizing, followed by confirmation). Using the synapse cloudmanagers plugin, one needs to run the update function, and then wait for the VM to be in CONFIRM_RESIZE state. The same update command should then be run again.
+# Description: resizes a VM to the specified flavor. Note: in OpenStack behaviour, the resizing process needs to steps (actual resizing, followed by confirmation). Using the synapse cloudmanagers plugin, one needs to run the update function, and then wait for the VM to be in VERIFY_RESIZE state. The same update command should then be run again.
 # Parameters:
 - name: name of the VM
 - flavor: the destination flavor ID (tiny, small, medium, large, ...)
