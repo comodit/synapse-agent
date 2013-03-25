@@ -17,7 +17,8 @@ class ReposController(ResourcesController):
         monitor = attributes.get('monitor')
         self.comply(name=res_id, baseurl=baseurl, present=True,
                     monitor=monitor)
-        self.module.create_repo(res_id, attributes)
+        if baseurl:
+            self.module.create_repo(res_id, attributes)
         return self.module.get_repos(res_id)
 
     def update(self, res_id=None, attributes=None):
