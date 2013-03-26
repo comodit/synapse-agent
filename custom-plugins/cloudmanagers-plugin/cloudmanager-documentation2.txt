@@ -1,0 +1,366 @@
+Cloud managers plugin documentation page
+
+This plugin allows synapse to manage cloud managers that stand in the same infrastructure as the machine running synapse. Thus, synapse is now used as a proxy to manage remotely a private infrastructure behind a firewall.
+
+## Installation
+First, synapse should have already been installed.
+The cloud managers plugin installation is possible in two ways.
+
+### Using RPM
+`yum install synapse-cloudmanagers-plugin` or `rpm -i synapse-cloudmanagers-plugin-<version><release>.noarch.rpm
+`
+
+### Using sources
+Copy the `cloudmanagers_plugin` folder to `/var/lib/synapse/custom_plugin/` or wherever you want.
+By default, synapse will use `/var/lib/synapse/custom_plugin/`. If you chose to copy `cloudmanagers_plugin` elsewhere, then you have to add the following lines into `/etc/synapse/synapse.conf` :
+
+```
+[controller]
+custom_resources = /path/to/cloudmanagers_plugin/directory/
+```
+
+## Plugin configuration
+
+The configuration file of the plugin is located at `/etc/synapse/`. It should be named `cloudmanagers.conf`.
+Here is an example of this file :
+
+```
+[cm_openstack]
+cm_type = openstack
+url = http://192.168.202.101
+keystone_base_url = http://192.168.202.101:35357/v2.0
+nova_base_url = http://192.168.202.101:8774/v2/
+tenant_name = admin
+username = admin
+password = admin
+```
+Only current supported cloud manager is OpenStack. Here is the description of the parameters:
+* `[xxx]` : the name you wish to give to this specific cloud manager deployment
+* `cm_type`: the type of the cloud manager
+* `url`: URL of the openstack cloud controller
+* `keystone_base_url`: URL of the keystone identity service
+* `nova_base_url`: URL of the nova-api service
+* `tenant_name`: name of the tenant (project in the openstack jargon) in which VMs will be deployed. Additional cloud managers sections using same parameters except tenant_name can be written in order to distiguish projects or customers
+* `username`: user on whose behalf VMs will be managed
+* `password`: password for the corresponding username
+
+## AMQP API
+### read
+Returns the managed cloud managers, the virtual machines or disk images on a given cloud manager or information about a virtual machine.
+
+The id attribute is the cloud manager's id.
+Those ids are specified in a configuration file ('/etc/synapse/cloudmanagers.conf').
+
+If none of the cloud manager's id or the virtual machine's name is given, then the response will contain a list of the managed cloud managers ids.
+
+Example:
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "read",
+    "attributes": {},
+    "id": ""
+}
+```
+
+Response:
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'',
+    'status':
+    {
+        'cloudmanagers': ['test_os']
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
+
+If the name of the virtual machine is not specified, then it returns the defined virtual machines on the specified cloud manager.
+
+Here is a request example:
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "read",
+    "attributes": {},
+    "id": "test_os"
+}
+```
+
+Response:
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'VMs': [u'haproxy'],
+        'cloudmanagers': u'test_os',
+        'url': 'http://192.168.202.101'
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
+
+Example of incoming message to retrieve the information about a virtual machine named 'haproxy':
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "read",
+    "attributes":
+    {
+        "name": "haproxy"
+    },
+    "id": "test_os"
+}
+```
+
+Response:
+
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'cloudmanager': u'test_os',
+        'url': 'http://192.168.202.101',
+        'vm_flavor': u'1',
+        'vm_name': u'haproxy',
+        'vm_status': u'ACTIVE',
+        'vm_vcpus': 1,
+        'vm_vnc_port': '6969'},
+        'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+    }
+```
+
+As the VNC export is not yet implemented in the cloud managers plugin, the VNC port response is hardcoded and thus can not be used.
+
+
+Example of incoming message to retrieve the list of available image disks to boot VMs from:
+
+```js
+{
+"collection": "cloudmanagers",
+ "filters": {},
+ "action": "read",
+ "attributes":
+ {
+"listimages": "1"
+},
+ "id": "test_os"
+}
+```
+
+Response:
+
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'cloudmanagers': u'test_os',
+        'images':
+        [
+            {
+                u'id': u'25150b69-c221-4972-822e-9ab1a4884957',
+                u'links':
+                [
+                    {
+                        u'href': u'http://192.168.202.101:8774/v2/faae83f70c1f4e139194109e06f66f50/images/25150b69-c221-4972-822e-9ab1a4884957',
+                        u'rel': u'self'
+                    },
+                    {
+                        u'href': u'http://192.168.202.101:8774/faae83f70c1f4e139194109e06f66f50/images/25150b69-c221-4972-822e-9ab1a4884957',
+                        u'rel': u'bookmark'
+                    },
+                    {
+                        u'href': u'http://192.168.202.101:9292/faae83f70c1f4e139194109e06f66f50/images/25150b69-c221-4972-822e-9ab1a4884957',
+                        u'rel': u'alternate',
+                        u'type': u'application/vnd.openstack.image'
+                    }
+                ],
+                u'name': u'Ubuntu 12.04 cloudimg amd64'
+            }
+        ],
+        'url': 'http://192.168.202.101'
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
+
+
+### create
+Creates and provisions a virtual machine.
+
+Mandatory attributes:
+
+* name (string): VM name.
+* flavor (integer): VM flavor. Similar to the instance type in amazon (in MB).
+* image (string): VM image disk id.
+
+Others optional attributes:
+
+* key (string): name of the keypair which public key should be injected at boot time.
+* user_data (string): Base64 encoded user data script that should be passed to VM at first boot
+
+
+Request example:
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "create",
+    "attributes":
+    {
+        "flavor": "1",
+        "image": "25150b69-c221-4972-822e-9ab1a4884957",
+        "name": "test",
+        "key": "tim-os",
+        "user-data": "IyEvYmluL2Jhc2gNCnRvdWNoIC9ob21lL3VidW50dS9jb3Vjb3U="
+    },
+    "id": "test_os"
+}
+```
+
+Response:
+
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'cloudmanager': u'test_os',
+        'created': True,
+        'vm_name': u'test',
+        'vm_status': None
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
+
+### update
+Update VM settings.
+
+Mandatory attributes:
+
+* name (string): VM name
+* 
+* status (string): VM status after update. It can be "ACTIVE", "PAUSED", "SUSPENDED", "VERIFY_RESIZE" or "REBOOT".
+  * and/or
+* flavor (integer): destination flavor when resizing a VM 
+
+Example for shutting down a domain:
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "update",
+    "attributes":
+    {
+        "status": "shutdown",
+        "name": "haproxy"
+    },
+    "id": "test_os"
+}
+```
+
+Response:
+
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'cloudmanager': u'test_os',
+        'vm_name': u'haproxy',
+        'vm_status': u'ACTIVE'
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
+
+Example of resizing VM (changing VM flavor):
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "update",
+    "attributes":
+    {
+        "flavor": "2",
+        "name": "haproxy"
+    },
+    "id": "test_os"
+}
+```
+
+Response:
+
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'cloudmanager': u'test_os',
+        'vm_flavor': u'1',
+        'vm_name': u'haproxy'
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
+
+According to OpenStack behaviour, the resizing process needs two steps: actual resizing, followed by confirmation. Using the synapse cloudmanagers plugin, one needs to perform the update function, and then wait for the VM to be in VERIFY_RESIZE state. The same update command should then be issued again.
+
+### delete
+Delete a domain and even it's storage if specified.
+
+The only mandatory attribute is the name of the domain:
+
+* name (string)
+
+Request example:
+
+```js
+{
+    "collection": "cloudmanagers",
+    "filters": {},
+    "action": "delete",
+    "attributes":
+    {
+        "name": "haproxy"
+    },
+    "id": "test_os"
+}
+```
+
+Response:
+
+```js
+{
+    'collection': 'cloudmanagers',
+    'resource_id': u'test_os',
+    'status':
+    {
+        'cloudmanager': u'test_os',
+        'deleted': True,
+        'vm_name': u'haproxy',
+        'vm_status': u'ACTIVE'
+    },
+    'uuid': '3a468145-1afc-40d3-baf5-3ba4c0fc3561'
+}
+```
