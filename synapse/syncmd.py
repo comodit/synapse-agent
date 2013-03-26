@@ -1,4 +1,5 @@
 import sys
+import tempfile
 
 from subprocess import Popen, PIPE
 from threading import Thread
@@ -15,16 +16,36 @@ __STDOUTBUF__ = ''
 
 def exec_cmd(cmd):
     ret = {}
-    proc = Popen(cmd,
-                 shell=True,
-                 stdout=PIPE,
-                 stderr=PIPE)
-    out, err = proc.communicate()
-    ret['cmd'] = cmd
-    ret['stdout'] = out
-    ret['stderr'] = err
-    ret['returncode'] = proc.returncode
-    ret['pid'] = proc.pid
+    stdout = tempfile.TemporaryFile(mode='w+t')
+    stderr = tempfile.TemporaryFile(mode='w+t')
+    try:
+        proc = Popen(cmd, shell=True, universal_newlines=True,
+                                stdout=stdout, stderr=stderr)
+        ret_code = proc.wait()
+
+        stdout.flush()
+        stderr.flush()
+
+        out = ''
+        stdout.seek(0)
+        for line in stdout:
+            out += line.rstrip()
+
+        err = ''
+        stderr.seek(0)
+        for line in stderr:
+            err += line.rstrip()
+
+        ret['cmd'] = cmd
+        ret['stdout'] = out
+        ret['stderr'] = err
+        ret['returncode'] = ret_code
+        ret['pid'] = proc.pid
+
+    finally:
+        stdout.close()
+        stderr.close()
+
     return ret
 
 
