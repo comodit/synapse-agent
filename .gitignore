@@ -1,6 +1,6 @@
 # Python temp files
 *.pyc
-*.spec
+#*.spec
 synapse*.egg-info/
 dist/
 deb_dist/
@@ -20,7 +20,7 @@ vagrant
 Vagrantfile
 
 # Others
-*.spec
+#*.spec
 *.sw*
 *.log
 *.rvmrc
