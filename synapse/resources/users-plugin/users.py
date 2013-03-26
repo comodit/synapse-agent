@@ -18,12 +18,19 @@ class UsersController(ResourcesController):
         groups = self.sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir') or '/home/%s' % res_id
         comment = attributes.get('full_name')
-        uid = "%s" % attributes.get('uid')
-        gid = "%s" % attributes.get('gid')
+        uid = "%s" % attributes.get('uid', '') or ''
+        gid = "%s" % attributes.get('gid', '') or ''
         shell = attributes.get('shell')
 
-        self.module.user_add(res_id, password, login_group, groups, 
+        self.module.user_add(res_id, password, login_group, groups,
                              homedir, comment, uid, gid, shell)
+
+        if not uid:
+            uid = self.module.get_user_infos(res_id)['uid']
+        if not gid:
+            gid = self.module.get_user_infos(res_id)['gid']
+        if not shell:
+            shell = self.module.get_user_infos(res_id)['shell']
 
         self.comply(name=res_id,
                     present=True,
@@ -87,7 +94,7 @@ class UsersController(ResourcesController):
         if groups:
             group_list = re.sub('\s', '', groups).split(',')
         return group_list
-        
+
     def monitor(self, persisted_state, current_state):
         compliant = True
         name = persisted_state.get('name')
