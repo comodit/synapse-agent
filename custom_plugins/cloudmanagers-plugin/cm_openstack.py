@@ -3,7 +3,8 @@ from synapse.config import config
 from synapse.syncmd import exec_cmd
 from synapse.resources.resources import ResourceException
 import json
-from restful.restful_lib import Connection
+from restful_lib import Connection
+
 import ConfigParser
 
 from synapse.logger import logger
@@ -58,7 +59,7 @@ def _exists(attributes):
         return True
     except ResourceException:
         return False
-        
+
 #-----------------------------------------------------------------------------
 
 def _get_vcpus(attributes):
@@ -68,7 +69,7 @@ def _get_vcpus(attributes):
     vm_id = vm['id']
     flavor = _get_flavor(attributes, vm_id)
     return flavor['vcpus']
-    
+
 #-----------------------------------------------------------------------------
 
 def _get_flavor(attributes, vm_id):
@@ -88,7 +89,7 @@ def _get_flavor(attributes, vm_id):
     else:
         log.error("_get_flavor: Bad HTTP return code: %s" % status)
     return flavor['flavor']
-    
+
 #-----------------------------------------------------------------------------
 
 def _set_flavor(attributes, vm_id, current_flavor, new_flavor):
@@ -124,7 +125,7 @@ def _set_flavor(attributes, vm_id, current_flavor, new_flavor):
 
 def _get_vnc_port(attributes):
     return '6969'
-    
+
 #-----------------------------------------------------------------------------
 
 def _get_status(attributes):
@@ -139,14 +140,14 @@ def _get_status(attributes):
 def _init_cloudmanager_attributes(res_id, attributes):
     cloudmanager_type = cm_util.get_config_option(res_id, 'cm_type', CLOUDMANAGERS_CONFIG_FILE)
 	# Initialize here specific attributes for OpenStack
-    
+
     attributes["cm_base_url"] = cm_util.get_config_option(res_id, "url", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_keystone_url"] = cm_util.get_config_option(res_id, "keystone_base_url", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_nova_url"] = cm_util.get_config_option(res_id, "nova_base_url", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_tenant_name"] = cm_util.get_config_option(res_id, "tenant_name", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_username"] = cm_util.get_config_option(res_id, "username", CLOUDMANAGERS_CONFIG_FILE)
     attributes["cm_password"] = cm_util.get_config_option(res_id, "password", CLOUDMANAGERS_CONFIG_FILE)
-	
+
 #-----------------------------------------------------------------------------
 
 def _create_VM(res_id, attributes, dict_vm):
@@ -162,7 +163,7 @@ def _create_VM(res_id, attributes, dict_vm):
         return _get_status(attributes)
     else:
         log.error("_create_VM: Bad HTTP return code: %s" % status)
-        
+
 #-----------------------------------------------------------------------------
 
 def _delete_VM(attributes):
@@ -188,18 +189,19 @@ def _get_keystone_tokens(attributes):
         return tenant_id, x_auth_token
     else:
         log.error("_get_keystone_tokens: Bad HTTP return code: %s" % status)
-        
+
 #-----------------------------------------------------------------------------
 
 def _get_readable_status(num_status):
     return num_status
-    
+
 #-----------------------------------------------------------------------------
 def _get_status(attributes):
     try:
         vm = _get_VM(attributes)
         return vm['status']
-    except (ResourceException, 'pas de statut'):
+    except ResourceException as err:
+        log.error(err)
         return 0
 #-----------------------------------------------------------------------------
 def _exists(attributes):
@@ -219,7 +221,7 @@ def _get_images(attributes):
         images = json.loads(resp['body'])
         return images['images']
     else:
-        log.error("_get_images: Bad HTTP return code: %s" % status)    
+        log.error("_get_images: Bad HTTP return code: %s" % status)
 
 #-----------------------------------------------------------------------------
 

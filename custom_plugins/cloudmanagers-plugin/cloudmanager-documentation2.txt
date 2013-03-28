@@ -223,12 +223,12 @@ Request example:
     "attributes":
     {
         "flavor": "1",
-        "image": "25150b69-c221-4972-822e-9ab1a4884957",
+        "image": "74c1e238-de37-4abf-9f84-f9ed635be0ef",
         "name": "test",
-        "key": "tim-os",
+        "key": "raphdg",
         "user-data": "IyEvYmluL2Jhc2gNCnRvdWNoIC9ob21lL3VidW50dS9jb3Vjb3U="
     },
-    "id": "test_os"
+    "id": "cm_openstack"
 }
 ```
 
@@ -255,10 +255,10 @@ Update VM settings.
 Mandatory attributes:
 
 * name (string): VM name
-* 
+*
 * status (string): VM status after update. It can be "ACTIVE", "PAUSED", "SUSPENDED", "VERIFY_RESIZE" or "REBOOT".
   * and/or
-* flavor (integer): destination flavor when resizing a VM 
+* flavor (integer): destination flavor when resizing a VM
 
 Example for shutting down a domain:
 
@@ -270,9 +270,9 @@ Example for shutting down a domain:
     "attributes":
     {
         "status": "shutdown",
-        "name": "haproxy"
+        "name": "test"
     },
-    "id": "test_os"
+    "id": "cm_openstack"
 }
 ```
 
