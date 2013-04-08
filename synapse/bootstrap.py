@@ -122,6 +122,7 @@ def make_x509_request(uuid, csrpath, keypath):
     req.sign(pkey, 'sha1')
     req.save(csrpath)
     rsa.save_key(keypath, cipher=None)
+    os.chmod(keypath, 0640)
     message = {}
     message['uuid'] = name.CN
     with open(csrpath, 'r') as fd:
