@@ -247,7 +247,10 @@ class AmqpSynapse(Amqp):
         self.logger.debug("[AMQP-ACK] #%s" % method_frame.delivery_tag)
         try:
             task = Task(vars(header_frame), body)
-            self.tq.put(task)
+            if not method_frame.redelivered:
+                self.tq.put(task)
+            else:
+                self.logger.warning("Message redelivered. Won't process.")
         except ValueError as err:
             self.logger.error(err)
 
