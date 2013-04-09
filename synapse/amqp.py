@@ -81,6 +81,7 @@ class Amqp(object):
         # Connection and channel initialization
         self._connection = None
         self._channel = None
+        self._publish_channel = None
         self._message_number = 0
         self._deliveries = {}
 
@@ -171,7 +172,25 @@ class Amqp(object):
     def on_channel_open(self, channel):
         self._channel = channel
         self.add_on_channel_close_callback()
+        self.open_publish_channel()
+
+    def open_publish_channel(self):
+        self._connection.channel(self.on_publish_channel_open)
+
+    def on_publish_channel_open(self, channel):
+        self._publish_channel = channel
+        self.add_on_channel_close_callback()
         self.setup()
+
+    def add_on_publish_channel_close_callback(self):
+        self._publish_channel.add_on_close_callback(self.on_publish_channel_close)
+
+    def on_publish_channel_close(self, code, text):
+        self.logger.debug("Remote channel close, code %d" % code)
+        time.sleep(2)
+        if code != 200:
+            self.close()
+            raise AmqpError(text)
 
 
 class AmqpAdmin(Amqp):
@@ -224,7 +243,7 @@ class AmqpSynapse(Amqp):
         self.start_consuming()
 
     def start_publishing(self):
-        self._channel.confirm_delivery(callback=self.on_confirm_delivery)
+        self._publish_channel.confirm_delivery(callback=self.on_confirm_delivery)
         self._connection.add_timeout(1, self._publisher)
         self._connection.add_timeout(1, self._check_redeliveries)
 
@@ -287,7 +306,7 @@ class AmqpSynapse(Amqp):
         sanitizing it from unwanted informations.
         """
         publish_args = publish_task.get()
-        self._channel.basic_publish(**publish_args)
+        self._publish_channel.basic_publish(**publish_args)
         self._message_number += 1
         self.logger.debug("[AMQP-PUBLISHED] #%s: %s " %
                          (self._message_number, publish_task.body))

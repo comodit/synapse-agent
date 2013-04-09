@@ -95,24 +95,6 @@ class Dispatcher(object):
 
         retry_timeout = config.rabbitmq['retry_timeout']
         try:
-            self.amqpadmin = AmqpAdmin(config.rabbitmq)
-            while not self.force_close:
-                try:
-                    self.amqpadmin.run()
-                    break
-                except (socket.timeout, IOError, AttributeError) as err:
-                    self.logger.error(err)
-                    try:
-                        self.logger.debug("Sleeping %d sec" % retry_timeout)
-                        time.sleep(retry_timeout)
-                    except KeyboardInterrupt:
-                        self.stop_synapse()
-                        raise SystemExit
-                except AmqpError as err:
-                    break
-                except KeyboardInterrupt:
-                    self.stop_synapse()
-                    raise SystemExit
 
             self.sched = SynSched()
             self.controller = Controller(scheduler=self.sched,
