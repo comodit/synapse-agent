@@ -134,7 +134,7 @@ class Amqp(object):
         self._connection.ioloop.start()
 
     def connect(self):
-        #SelectPoller.TIMEOUT = .1
+        SelectPoller.TIMEOUT = .1
         return SelectConnection(self.parameters, self.on_connection_open)
 
     def close(self, amqperror=False):
@@ -233,6 +233,7 @@ class AmqpSynapse(Amqp):
         super(AmqpSynapse, self).__init__(conf)
         self.pq = pq
         self.tq = tq
+        self._processing = False
 
     def setup(self):
         """Callback for when the channel is opened. Once the channel is opened,
@@ -240,17 +241,19 @@ class AmqpSynapse(Amqp):
         for channel errors.
         """
         self.start_publishing()
-        self.start_consuming()
+        self.start_getting()
 
     def start_publishing(self):
         self._publish_channel.confirm_delivery(callback=self.on_confirm_delivery)
         self._connection.add_timeout(1, self._publisher)
         self._connection.add_timeout(1, self._check_redeliveries)
 
-    def start_consuming(self):
-        self._consumer_tag = self._channel.basic_consume(
-            consumer_callback=self.handle_delivery, queue=self.queue)
-        self.logger.debug("Consuming on queue %s" % self.queue)
+    def start_getting(self):
+        if self._processing is False:
+            self._consumer_tag = self._channel.basic_get(
+                callback=self.handle_delivery, queue=self.queue)
+            self.logger.debug("Getting on queue %s" % self.queue)
+        self._connection.add_timeout(.1, self.start_getting)
 
     def on_confirm_delivery(self, tag):
         self.logger.debug("[AMQP-DELIVERED] #%s" % tag.method.delivery_tag)
@@ -260,6 +263,7 @@ class AmqpSynapse(Amqp):
             pass
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
+        self._processing = True
         self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
                           (method_frame.delivery_tag, body))
         self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
@@ -285,7 +289,7 @@ class AmqpSynapse(Amqp):
             except Empty:
                 pass
 
-        self._connection.add_timeout(1, self._publisher)
+        self._connection.add_timeout(.1, self._publisher)
 
     def _check_redeliveries(self):
         # In case we have a message to redeliver, let's wait a few seconds
@@ -299,7 +303,7 @@ class AmqpSynapse(Amqp):
                                   (key, task.body))
                 self.pq.put(task)
                 del self._deliveries[key]
-        self._connection.add_timeout(1, self._check_redeliveries)
+        self._connection.add_timeout(.1, self._check_redeliveries)
 
     def _handle_publish(self, publish_task):
         """This method actually publishes the item to the broker after
@@ -307,10 +311,15 @@ class AmqpSynapse(Amqp):
         """
         publish_args = publish_task.get()
         self._publish_channel.basic_publish(**publish_args)
+
         self._message_number += 1
-        self.logger.debug("[AMQP-PUBLISHED] #%s: %s " %
+        self.logger.debug("[AMQP-PUBLISHED] #%s: %s" %
                          (self._message_number, publish_task.body))
         if publish_task.redeliver:
             self._deliveries[self._message_number] = {}
             self._deliveries[self._message_number]["task"] = publish_task
             self._deliveries[self._message_number]["ts"] = datetime.now()
+
+        if publish_args['properties'].correlation_id is not None:
+            self._processing = False
+
