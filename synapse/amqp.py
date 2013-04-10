@@ -134,7 +134,7 @@ class Amqp(object):
         self._connection.ioloop.start()
 
     def connect(self):
-        SelectPoller.TIMEOUT = .1
+        #SelectPoller.TIMEOUT = .1
         return SelectConnection(self.parameters, self.on_connection_open)
 
     def close(self, amqperror=False):
@@ -225,7 +225,7 @@ class AmqpAdmin(Amqp):
     def on_channel_close(self, code, text):
         if code != 200:
             self.logger.warning(text)
-            self._connection.add_timeout(.25, self.close)
+            self._connection.add_timeout(1, self.close)
 
 
 class AmqpSynapse(Amqp):
@@ -285,7 +285,7 @@ class AmqpSynapse(Amqp):
             except Empty:
                 pass
 
-        self._connection.add_timeout(.1, self._publisher)
+        self._connection.add_timeout(1, self._publisher)
 
     def _check_redeliveries(self):
         # In case we have a message to redeliver, let's wait a few seconds
