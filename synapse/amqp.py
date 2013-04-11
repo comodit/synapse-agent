@@ -273,8 +273,10 @@ class AmqpSynapse(Amqp):
             if not method_frame.redelivered:
                 self.tq.put(task)
             else:
+                self._processing = False
                 self.logger.warning("Message redelivered. Won't process.")
         except ValueError as err:
+            self._processing = False
             self.logger.error(err)
 
     def _publisher(self):
