@@ -248,7 +248,7 @@ class AmqpSynapse(Amqp):
         self.start_getting()
 
     def on_get_empty(self, frame):
-        self._connection.add_timeout(.1, self.start_getting)
+        self.next_get()
 
     def start_publishing(self):
         self._publish_channel.confirm_delivery(callback=self.on_confirm_delivery)
@@ -267,7 +267,7 @@ class AmqpSynapse(Amqp):
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
         self._processing = True
-        self._connection.add_timeout(.1, self.start_getting)
+        self.next_get()
         self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
                           (method_frame.delivery_tag, body))
         self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
@@ -282,6 +282,9 @@ class AmqpSynapse(Amqp):
         except ValueError as err:
             self._processing = False
             self.logger.error(err)
+
+    def next_get(self):
+        self._connection.add_timeout(.1, self.start_getting)
 
     def _publisher(self):
         """This callback is used to check at regular interval if there's any
@@ -328,4 +331,5 @@ class AmqpSynapse(Amqp):
 
         if publish_args['properties'].correlation_id is not None:
             self._processing = False
+            self.next_get()
 
