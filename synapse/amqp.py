@@ -179,7 +179,7 @@ class Amqp(object):
 
     def on_publish_channel_open(self, channel):
         self._publish_channel = channel
-        self.add_on_channel_close_callback()
+        self.add_on_publish_channel_close_callback()
         self.setup()
 
     def add_on_publish_channel_close_callback(self):
@@ -240,8 +240,15 @@ class AmqpSynapse(Amqp):
         it's time to add a callback to check the publish queue and a callback
         for channel errors.
         """
+        self._channel.callbacks.add(self._channel.channel_number,
+                                   pika.spec.Basic.GetEmpty,
+                                   self.on_get_empty,
+                                   one_shot=False)
         self.start_publishing()
         self.start_getting()
+
+    def on_get_empty(self, frame):
+        self._connection.add_timeout(.1, self.start_getting)
 
     def start_publishing(self):
         self._publish_channel.confirm_delivery(callback=self.on_confirm_delivery)
@@ -252,18 +259,15 @@ class AmqpSynapse(Amqp):
         if self._processing is False:
             self._consumer_tag = self._channel.basic_get(
                 callback=self.handle_delivery, queue=self.queue)
-            self.logger.debug("Getting on queue %s" % self.queue)
-        self._connection.add_timeout(.1, self.start_getting)
 
     def on_confirm_delivery(self, tag):
         self.logger.debug("[AMQP-DELIVERED] #%s" % tag.method.delivery_tag)
-        try:
+        if tag.method.delivery_tag in self._deliveries:
             del self._deliveries[tag.method.delivery_tag]
-        except:
-            pass
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
         self._processing = True
+        self._connection.add_timeout(.1, self.start_getting)
         self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
                           (method_frame.delivery_tag, body))
         self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
