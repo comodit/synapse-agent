@@ -267,7 +267,6 @@ class AmqpSynapse(Amqp):
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
         self._processing = True
-        self.next_get()
         self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
                           (method_frame.delivery_tag, body))
         self._channel.basic_ack(delivery_tag=method_frame.delivery_tag)
