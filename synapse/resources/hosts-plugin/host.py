@@ -1,5 +1,6 @@
 import logging
 import socket
+import psutil
 
 from netifaces import interfaces, ifaddresses, AF_INET, AF_LINK
 
@@ -22,6 +23,9 @@ def ping():
 def get_platform():
     return distribution_name, distribution_version
 
+
+def get_cpu():
+    return str(psutil.cpu_percent(interval=1))
 
 def get_hostname():
     try:

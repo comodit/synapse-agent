@@ -16,30 +16,31 @@ class FilesController(ResourcesController):
 
     def read(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
+        status = {}
 
         present = self.module.is_file(res_id)
-        self.status['name'] = res_id
-        self.status['present'] = present
+        status['name'] = res_id
+        status['present'] = present
         if present:
             if attributes.get('get_content'):
                 content = self.module.get_content(res_id)
-                self.status['content'] = content
+                status['content'] = content
             if attributes.get('md5'):
                 md5 = self.module.md5(res_id)
-                self.status['md5'] = md5
-            self.status['owner'] = self.module.owner(res_id)
-            self.status['group'] = self.module.group(res_id)
-            self.status['mode'] = self.module.mode(res_id)
-            self.status['mod_time'] = self.module.mod_time(res_id)
-            self.status['c_time'] = self.module.c_time(res_id)
+                status['md5'] = md5
+            status['owner'] = self.module.owner(res_id)
+            status['group'] = self.module.group(res_id)
+            status['mode'] = self.module.mode(res_id)
+            status['mod_time'] = self.module.mod_time(res_id)
+            status['c_time'] = self.module.c_time(res_id)
 
-        return self.status
+        return status
 
     def create(self, res_id=None, attributes={}):
         '''
         This method is used to create or update a file on disk.
         ID is mandatory.
-        Owner, group and mode are optional. 
+        Owner, group and mode are optional.
         If not specified and file exists, get mode of file on system
         If not specified and file doesn't exist, owner is the current user,
         group is the current group and mode depends on system's umask.

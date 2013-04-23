@@ -18,6 +18,7 @@ class GroupsController(ResourcesController):
         return self.module.get_group_infos(res_id)
 
     def update(self, res_id=None, attributes={}):
+        status = {}
         new_name = attributes.get('new_name')
         gid = "%s" % attributes.get('gid')
         monitor = attributes.get('monitor')
@@ -29,13 +30,13 @@ class GroupsController(ResourcesController):
         if self.module.exists(res_id):
             if new_name or gid:
                 self.module.group_mod(res_id, new_name, gid)
-                self.status = self.module.get_group_infos(new_name)
+                status = self.module.get_group_infos(new_name)
             else:
-                self.status = self.module.get_group_infos(res_id)
+                status = self.module.get_group_infos(res_id)
         else:
             self.create(res_id=res_id, attributes=attributes)
 
-        return self.status
+        return status
 
     def delete(self, res_id=None, attributes=None):
         self.module.group_del(res_id)

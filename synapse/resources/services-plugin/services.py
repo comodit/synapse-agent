@@ -9,15 +9,17 @@ class ServicesController(ResourcesController):
     __resource__ = "services"
 
     def read(self, res_id=None, attributes=None):
+        status = {}
         self.check_mandatory(res_id)
-        self.status['running'] = self.module.is_running(res_id)
-        self.status['enabled'] = self.module.is_enabled(res_id)
+        status['running'] = self.module.is_running(res_id)
+        status['enabled'] = self.module.is_enabled(res_id)
 
-        return self.status
+        return status
 
     def update(self, res_id=None, attributes=None):
         # Id must be provided. Update cannot be done on multiple resources.
         # Attributes key must be provided
+        status = {}
         self.check_mandatory(res_id, attributes)
 
         enabled = attributes.get('enabled')
@@ -29,20 +31,20 @@ class ServicesController(ResourcesController):
         self.comply(running=running, enabled=enabled, monitor=monitor)
 
         # Retrieve the current state...
-        self.status['running'] = self.module.is_running(res_id)
-        self.status['enabled'] = self.module.is_enabled(res_id)
+        status['running'] = self.module.is_running(res_id)
+        status['enabled'] = self.module.is_enabled(res_id)
 
         # ...and compare it with wanted status. Take action if different.
 
         # Enable/Disable resource
-        if enabled is not None and enabled != self.status["enabled"]:
+        if enabled is not None and enabled != status["enabled"]:
             if enabled:
                 self.module.enable(res_id)
             else:
                 self.module.disable(res_id)
 
         # Start/Stop resource
-        if running is not None and running != self.status["running"]:
+        if running is not None and running != status["running"]:
             if running:
                 self.module.start(res_id)
             else:
@@ -57,10 +59,10 @@ class ServicesController(ResourcesController):
             self.module.reload(res_id)
 
         # Return status after actions has been taken
-        self.status['running'] = self.module.is_running(res_id)
-        self.status['enabled'] = self.module.is_enabled(res_id)
+        status['running'] = self.module.is_running(res_id)
+        status['enabled'] = self.module.is_enabled(res_id)
 
-        return self.status
+        return status
 
     def create(self, res_id=None, attributes=None):
         return self.update(res_id=res_id, attributes=attributes)

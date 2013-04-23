@@ -83,11 +83,12 @@ class UsersController(ResourcesController):
         return self.response
 
     def delete(self, res_id=None, attributes=None):
+        status = {}
         self.comply(monitor=False)
         self.module.user_del(res_id)
-        self.status['present'] = False
+        status['present'] = False
 
-        return self.status
+        return status
 
     def sanitize_groups(self, groups):
         group_list = []

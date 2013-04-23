@@ -24,7 +24,7 @@ class ResourcesController(object):
     """
     __resource__ = ""
     action_map = {'create': 'Creating',
-                  'read': 'Reading', 
+                  'read': 'Reading',
                   'update': 'Updating',
                   'delete': 'Deleting'}
 
@@ -45,12 +45,11 @@ class ResourcesController(object):
         self.res_id = None
         self.scheduler = None
         self.persister = None
-        
+
         # This queue is injected by the resource locator at plugin
         # instantiation
         self.publish_queue = None
 
-        self.status = {}
         self.response = {}
 
         # Use this lock to avoid unconsistent reads among threads, especially
@@ -143,7 +142,6 @@ class ResourcesController(object):
 
         # Reset status and response
         self.response = {}
-        self.status = {}
 
         return response
 
@@ -225,7 +223,7 @@ class ResourcesController(object):
                     result = item
         except AttributeError:
             pass
-        
+
         return result
 
     def check_mandatory(self, *args):
@@ -265,7 +263,7 @@ class ResourcesController(object):
 
         except AttributeError:
             pass
-        
+
     def monitor(self, persisted_state, current_state):
         raise NotImplementedError('%s monitoring not implemented'
                                   % self.__resource__)
@@ -313,13 +311,13 @@ class ResourcesController(object):
                                      compliant=compliant,
                                      b2c=state.get('back_to_compliance'))
                 continue
-            
+
             if lc > lnc:
                 if state.get('back_to_compliance'):
                     self._publish_compliance(state['resource_id'], state,
                                          state['current_status'],
                                          last_alert=state.get('last_alert'),
-                                         compliant=compliant, 
+                                         compliant=compliant,
                                          b2c=True)
 
             elif lc < lnc:

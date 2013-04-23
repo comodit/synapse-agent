@@ -10,25 +10,29 @@ class HostsController(ResourcesController):
     __resource__ = "hosts"
 
     def read(self, res_id=None, attributes=None):
+        status = {}
         if 'hostname' in attributes:
-            self.status['hostname'] = self.module.get_hostname()
+            status['hostname'] = self.module.get_hostname()
 
         if 'mac' in attributes or 'mac_addresses' in attributes:
-            self.status['mac_addresses'] = self.module.get_mac_addresses()
+            status['mac_addresses'] = self.module.get_mac_addresses()
 
         if 'memtotal' in attributes:
-            self.status['memtotal'] = self.module.get_memtotal()
+            status['memtotal'] = self.module.get_memtotal()
+
+        if 'cpu' in attributes:
+            status['cpu'] = self.module.get_cpu()
 
         if 'ip' in attributes:
-            self.status['ip'] = self.module.get_ip_addresses()
+            status['ip'] = self.module.get_ip_addresses()
 
         if 'uptime' in attributes:
-            self.status['uptime'] = self.module.get_uptime()
+            status['uptime'] = self.module.get_uptime()
 
         if 'platform' in attributes:
-            self.status['platform'] = self.module.get_platform()
+            status['platform'] = self.module.get_platform()
 
-        return self.status
+        return status
 
     def watch(self):
         interval = self._get_monitor_interval()

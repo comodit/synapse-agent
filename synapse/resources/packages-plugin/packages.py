@@ -8,14 +8,16 @@ class PackagesController(ResourcesController):
     __resource__ = "packages"
 
     def read(self, res_id=None, attributes=None):
+        status = {}
         if res_id:
-            self.status['installed'] = self.module.is_installed(res_id)
+            status['installed'] = self.module.is_installed(res_id)
         else:
-            self.status['installed'] = self.module.get_installed_packages()
+            status['installed'] = self.module.get_installed_packages()
 
-        return self.status
+        return status
 
     def create(self, res_id=None, attributes={}):
+        status = {}
         self.check_mandatory(res_id)
 
         self.comply(installed=True)
@@ -23,20 +25,22 @@ class PackagesController(ResourcesController):
         if not self.module.is_installed(res_id):
             self.module.install(res_id)
 
-        self.status['installed'] = self.module.is_installed(res_id)
+        status['installed'] = self.module.is_installed(res_id)
 
-        return self.status
+        return status
 
     def update(self, res_id='', attributes=None):
+        status = {}
         if res_id:
             monitor = attributes.get('monitor')
             self.comply(installed=True, monitor=monitor)
             self.module.update(res_id)
-            self.status['installed'] = self.module.is_installed(res_id)
+            status['installed'] = self.module.is_installed(res_id)
 
-        return self.status
+        return status
 
     def delete(self, res_id=None, attributes=None):
+        status = {}
         self.check_mandatory(res_id)
 
         self.comply(monitor=False)
@@ -44,7 +48,7 @@ class PackagesController(ResourcesController):
         if self.module.is_installed(res_id):
             self.module.remove(res_id)
 
-        return self.status
+        return status
 
     def monitor(self, persisted_state, current_state):
         compliant = True

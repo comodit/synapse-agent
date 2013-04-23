@@ -12,18 +12,19 @@ class DirectoriesController(ResourcesController):
     __resource__ = "directories"
 
     def read(self, res_id=None, attributes={}):
+        status = {}
         self.check_mandatory(res_id)
 
         present = self.module.is_dir(res_id)
-        self.status['present'] = present
+        status['present'] = present
         if present:
-            self.status['owner'] = self.module.owner(res_id)
-            self.status['group'] = self.module.group(res_id)
-            self.status['mode'] = self.module.mode(res_id)
-            self.status['mod_time'] = self.module.mod_time(res_id)
-            self.status['c_time'] = self.module.c_time(res_id)
+            status['owner'] = self.module.owner(res_id)
+            status['group'] = self.module.group(res_id)
+            status['mode'] = self.module.mode(res_id)
+            status['mod_time'] = self.module.mod_time(res_id)
+            status['c_time'] = self.module.c_time(res_id)
 
-        return self.status
+        return status
 
     def create(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
