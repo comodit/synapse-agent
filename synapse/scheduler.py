@@ -17,9 +17,8 @@ class SynSched(threading.Thread):
         self.logger.debug("Scheduler successfully initialized.")
 
     def run(self):
-        self.logger.debug("Starting the scheduler...")
+        self.logger.debug("Scheduler started...")
         self.scheduler.run()
-        self.logger.debug("Scheduler started.")
 
     def add_job(self, job, interval):
         self._periodic(self.scheduler, interval, job)

@@ -75,6 +75,8 @@ class Main(object):
         # Update config with command line options
         logger.setup_logging(config.log)
         self.logger = logging.getLogger('synapse')
+        #import pika.log
+        #pika.log.setup(level=logging.DEBUG)
         self.transport = None
         self.daemon = SynapseDaemon(config.paths['pid'])
 

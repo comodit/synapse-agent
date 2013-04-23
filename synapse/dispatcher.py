@@ -2,11 +2,12 @@ import sys
 import time
 import signal
 import socket
+import traceback
 
 from Queue import Queue
 
 from synapse.scheduler import SynSched
-from synapse.amqp import AmqpSynapse, AmqpAdmin, AmqpError
+from synapse.amqp import Amqp
 from synapse.config import config
 from synapse.controller import Controller
 from synapse.logger import logger
@@ -23,15 +24,15 @@ class Dispatcher(object):
     def __init__(self, transport):
 
         self.transport = transport
-        self.force_close = False
 
         # Handle signals
-        #signal.signal(signal.SIGINT, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
 
         # Threads instances variables
         self.controller = None
         self.sched = None
+        self.amqpsynapse = None
 
         self.resourcefile = None
 
@@ -43,8 +44,8 @@ class Dispatcher(object):
     def stop(self, signum, frame):
         """This method handles SIGINT and SIGTERM signals. """
 
-        self.logger.debug("Stopping due to signal #%d" % signum)
-        self.stop_synapse()
+        self.logger.info("Stopping due to signal #%d" % signum)
+        raise KeyboardInterrupt
 
     def stop_synapse(self):
         """Closes all threads and exits properly.
@@ -66,7 +67,6 @@ class Dispatcher(object):
                 self.sched.join()
                 self.logger.debug("Scheduler stopped")
 
-        self.force_close = True
         self.logger.info("Successfully stopped.")
 
     def dispatch(self):
@@ -97,36 +97,29 @@ class Dispatcher(object):
         try:
 
             self.sched = SynSched()
-            self.controller = Controller(scheduler=self.sched,
-                                         tq=self.tq,
-                                         pq=self.pq)
-            # Start the controller
+            self.controller = Controller(self.sched, self.tq, self.pq)
             self.controller.start()
-
-            # Start the scheduler
             self.sched.start()
 
-            self.amqpsynapse = AmqpSynapse(config.rabbitmq,
-                                           pq=self.pq,
-                                           tq=self.tq)
-            while not self.force_close:
+            self.amqpsynapse = Amqp(config.rabbitmq, pq=self.pq, tq=self.tq)
+
+            while True:
                 try:
                     self.amqpsynapse.run()
-                except (AmqpError, IOError, AttributeError, TypeError) as err:
-                    self.logger.error(err)
-                    try:
-                        self.logger.debug("Sleeping %d sec" % retry_timeout)
-                        time.sleep(retry_timeout)
-                    except KeyboardInterrupt:
-                        self.stop_synapse()
-                except KeyboardInterrupt:
-                    self.stop_synapse()
+                except socket.error as err:
+                    self.logger.error("Cannot connect to broker (%s)" % err)
+                    self.logger.info("Retrying in %d seconds" % retry_timeout)
+                    time.sleep(retry_timeout)
 
-        except SystemExit:
+        except KeyboardInterrupt:
             pass
-
         except ResourceException as err:
             self.logger.error(str(err))
+        except Exception as err:
+            self.logger.error(err)
+        finally:
+            self.amqpsynapse.stop()
+            self.stop_synapse()
 
     def start_resourcefile(self):
         """This method handles the --uri file and --uri http commands.

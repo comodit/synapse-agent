@@ -1,6 +1,5 @@
 import logging
 import socket
-import psutil
 
 from netifaces import interfaces, ifaddresses, AF_INET, AF_LINK
 
@@ -25,7 +24,12 @@ def get_platform():
 
 
 def get_cpu():
-    return str(psutil.cpu_percent(interval=1))
+    try:
+        import psutil
+        return str(psutil.cpu_percent(interval=1))
+    except ImportError:
+        return None
+
 
 def get_hostname():
     try:
