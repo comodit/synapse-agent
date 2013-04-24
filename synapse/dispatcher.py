@@ -96,12 +96,11 @@ class Dispatcher(object):
         retry_timeout = config.rabbitmq['retry_timeout']
         try:
 
+            self.amqpsynapse = Amqp(config.rabbitmq, pq=self.pq, tq=self.tq)
             self.sched = SynSched()
             self.controller = Controller(self.sched, self.tq, self.pq)
             self.controller.start()
             self.sched.start()
-
-            self.amqpsynapse = Amqp(config.rabbitmq, pq=self.pq, tq=self.tq)
 
             while True:
                 try:

@@ -1,5 +1,6 @@
 import time
 import pika
+import socket
 
 from Queue import Empty
 from ssl import CERT_REQUIRED
@@ -45,9 +46,11 @@ class ExternalCredentials(PlainCredentials):
     def erase_credentials(self):
         pass
 
+
 # As mentioned in pika's PlainCredentials class, we need to append the new
 # authentication mechanism to VALID_TYPES
 pika.credentials.VALID_TYPES.append(ExternalCredentials)
+
 
 @logger
 class Amqp(object):
@@ -163,8 +166,11 @@ class Amqp(object):
         self.logger.debug("[AMQP] Invoked stop.")
         self._closing = True
         if self._connection:
-            self._connection.close()
-            self._connection.ioloop.start()
+            try:
+                self._connection.close()
+                self._connection.ioloop.start()
+            except Exception as err:
+                self.logger.error(err)
         self.logger.info("[AMQP] Stopped.")
 
     def on_connection_open(self, connection):
@@ -198,11 +204,15 @@ class Amqp(object):
         self.setup_consume()
 
     def add_on_consume_channel_close_callback(self):
-        self._consume_channel.add_on_close_callback(self.on_consume_channel_close)
+        self._consume_channel.add_on_close_callback(
+            self.on_consume_channel_close)
 
     def on_consume_channel_close(self, code, text):
         self.logger.debug("Consume channel closed [%d - %s]." % (code, text))
-        self._connection.add_timeout(3, self.open_consume_channel)
+        if code == 320:
+            raise socket.error
+        else:
+            self._connection.add_timeout(3, self.open_consume_channel)
 
     ##########################
     # Publish channel handling
@@ -220,20 +230,25 @@ class Amqp(object):
         self.setup_publish()
 
     def add_on_publish_channel_close_callback(self):
-        self._publish_channel.add_on_close_callback(self.on_publish_channel_close)
+        self._publish_channel.add_on_close_callback(
+            self.on_publish_channel_close)
 
     def on_publish_channel_close(self, code, text):
         self.logger.debug("Publish channel closed [%d - %s]." % (code, text))
-        self._connection.add_timeout(3, self.open_publish_channel)
+        if code == 320:
+            raise socket.error
+        else:
+            self._connection.add_timeout(3, self.open_publish_channel)
 
     ##########################
     # Consuming
     ##########################
     def setup_consume(self):
-        self._consume_channel.callbacks.add(self._consume_channel.channel_number,
-                                   pika.spec.Basic.GetEmpty,
-                                   self.on_get_empty,
-                                   one_shot=False)
+        self._consume_channel.callbacks.add(
+            self._consume_channel.channel_number,
+            pika.spec.Basic.GetEmpty,
+            self.on_get_empty,
+            one_shot=False)
         self.start_getting()
 
     def start_getting(self):
@@ -272,7 +287,8 @@ class Amqp(object):
         self.start_publishing()
 
     def start_publishing(self):
-        self._publish_channel.confirm_delivery(callback=self.on_confirm_delivery)
+        self._publish_channel.confirm_delivery(
+            callback=self.on_confirm_delivery)
         self._connection.add_timeout(1, self._publisher)
         self._connection.add_timeout(1, self._check_redeliveries)
 
@@ -327,4 +343,3 @@ class Amqp(object):
         if publish_args['properties'].correlation_id is not None:
             self._processing = False
             self.next_get()
-
