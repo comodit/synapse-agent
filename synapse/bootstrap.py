@@ -1,13 +1,16 @@
+
 import os
 import uuid
 import time
 import pika
 import json
 import socket
+from Queue import Queue
 
 from M2Crypto import RSA, X509, EVP, m2
 
 from synapse.config import config
+from synapse.amqp import Amqp
 from synapse.logger import logger
 from synapse_exceptions import SynapseException
 
@@ -50,16 +53,20 @@ def bootstrap(options):
         raise SynapseException("A pem file already exists. "
                                "Use --force with care to regenerate keys/csr.")
 
-    signin = SigningRPC(bootstrap_opts)
-
-    if not signin.is_connected:
-        raise SynapseException('Broker unreachable.')
-
     csr = make_x509_request(opts['uuid'],
                             opts['csrfile'],
                             opts['keyfile'])
 
-    resp = signin.publish_and_wait(csr)
+    response_queue = Queue()
+    amqp = AmqpBootstrap(config.rabbitmq,
+                         bootstrap_opts,
+                         csr,
+                         response_queue,
+                         timeout=TIMEOUT).run()
+    resp = {}
+
+    resp = response_queue.get(True, TIMEOUT)
+
     response = json.loads(resp)
 
     if 'cert' in response:
@@ -140,86 +147,99 @@ def save_cert(msg, certpath, cacertpath):
         cacert = msg.get('cacert', '')
         fd.write(cacert)
 
-
 @logger
-class SigningRPC(object):
-    def __init__(self, opts):
-        self.host = opts['host']
-        self.port = opts['port']
-        self.vhost = opts['vhost']
-        self.routing_key = opts['register_routing_key']
-        self.exchange = opts['register_exchange']
-        self.username = opts['username']
-        self.password = opts['password']
+class AmqpBootstrap(Amqp):
+    def __init__(self, config, options, csr, response_queue, timeout=5):
+        self.host = config['host'] = options['host']
+        self.port = config['port'] = options['port']
+        self.vhost = config['vhost'] = options['vhost']
+        self.username = config['username'] = options['username']
+        self.password = config['password'] = options['password']
+        super(AmqpBootstrap, self).__init__(config)
+        self.routing_key = options['register_routing_key']
+        self.exchange = options['register_exchange']
+        self.csr = csr
+        self.timeout = timeout
 
-        self.is_connected = False
+        self.queue = ''
 
-        self.response = False
-        credentials = pika.PlainCredentials(self.username,
-                                            self.password)
-        parameters = pika.ConnectionParameters(host=self.host,
-                                               port=self.port,
-                                               virtual_host=self.vhost,
-                                               credentials=credentials)
+        self._consumer_tag = None
+        self.response_queue = response_queue
 
-        counter = 0
-        timeout = 15
-        while counter <= timeout and not self.is_connected:
-            try:
-                self.logger.info('Trying to bootstrap on {0}:{1} on vhost '
-                                 '{2} with username [{3}] / password [{4}]'
-                                 .format(self.host, self.port, self.vhost,
-                                         self.username, self.password))
-                self.connection = pika.BlockingConnection(parameters)
-                self.channel = self.connection.channel()
-                result = self.channel.queue_declare(exclusive=True,
-                                                    durable=False,
-                                                    auto_delete=True)
-                self.callback_queue = result.method.queue
-                self.channel.basic_consume(self.on_response,
-                                           queue=self.callback_queue)
-                self.is_connected = True
-            except socket.timeout:
-                self.logger.error('Connection timeout. '
-                                  'Check your connection details.')
-            except socket.error:
-                self.logger.info('Could not reach broker. '
-                                 'Retrying in 2 seconds')
-                time.sleep(2)
-                counter += 2
+    def setup_consume_channel(self):
+        self._consume_channel.queue_declare(self.on_queue_declareok,
+                                            durable=False,
+                                            exclusive=True,
+                                            auto_delete=True)
 
-    def on_response(self, ch, method, props, body):
-        self.channel.basic_ack(delivery_tag=method.delivery_tag)
-        self.logger.debug(body)
-        self.response = body
+    def on_queue_declareok(self, method_frame):
+        self.logger.info("Waiting a response for %d seconds", self.timeout)
+        self._connection.add_timeout(self.timeout, self.stop)
+        self.queue = method_frame.method.queue
+        self.start_consuming()
 
-    def publish_and_wait(self, csr):
-        self.logger.info("Publishing CSR")
-        try:
-            properties = pika.BasicProperties(reply_to=self.callback_queue,
-                                              user_id=self.username)
+    def start_consuming(self):
+        self.add_on_cancel_callback()
+        self._consumer_tag = self._consume_channel.basic_consume(
+            self.on_message, self.queue)
+        self.publish()
 
-            self.channel.basic_publish(exchange=self.exchange,
-                                       routing_key=self.routing_key,
-                                       properties=properties,
-                                       body=json.dumps(csr))
+    def add_on_cancel_callback(self):
+        self._consume_channel.add_on_cancel_callback(
+            self.on_consumer_cancelled)
 
-            self.logger.info("Waiting for {0}s".format(TIMEOUT))
+    def on_consumer_cancelled(self, method_frame):
+        self.logger.info('Consumer was cancelled remotely, shutting down: %r',
+                    method_frame)
+        if self._consume_channel:
+            self._consume_channel.close()
 
-            timecount = 0
-            while not self.response and timecount < TIMEOUT:
-                self.connection.process_data_events()
-                timecount += 1
+    def stop_consuming(self):
+        if self._consume_channel:
+            self.logger.debug('Sending a Basic.Cancel RPC command to RabbitMQ')
+            self._consume_channel.basic_cancel(self.on_cancelok,
+                                               self._consumer_tag)
+    def on_cancelok(self, unused_frame):
+        self.logger.debug('RabbitMQ acknowledged the cancellation '
+                          'of the consumer')
+        self.close_channel()
 
-        except (socket.timeout, NameError), err:
-            msg = 'Error in signing process: {0}'.format(err)
-            raise SynapseException(msg)
+    def close_channel(self):
+        """Call to close the channel with RabbitMQ cleanly by issuing the
+        Channel.Close RPC command.
 
-        self.channel.stop_consuming()
-        self.connection.close()
-        self.connection.disconnect()
+        """
+        self.logger.debug('Closing the channel')
+        self._consume_channel.close()
 
-        if not self.response:
-            raise SynapseException('Did not receive response from server')
+    def on_message(self, channel, basic_deliver, properties, body):
+        self.logger.info('Received message # %s from %s: %s',
+                    basic_deliver.delivery_tag, properties.app_id, body)
+        self.acknowledge_message(basic_deliver.delivery_tag)
+        self.response_queue.put(body)
+        self.stop_consuming()
+        self.stop()
 
-        return self.response
+    def acknowledge_message(self, delivery_tag):
+        self._consume_channel.basic_ack(delivery_tag)
+
+    def setup_publish_channel(self):
+        """ Do nothing here. We want to be sure we're already consuming before
+        publishing anything. See self.publish() in start_consuming method.
+        """
+        pass
+
+    def publish(self):
+        self._publish_channel.confirm_delivery(
+            callback=self.on_confirm_delivery)
+
+        properties = pika.BasicProperties(reply_to=self.queue,
+                                          user_id=self.username)
+
+        self._publish_channel.basic_publish(exchange=self.exchange,
+                                            routing_key=self.routing_key,
+                                            properties=properties,
+                                            body=json.dumps(self.csr))
+
+    def on_confirm_delivery(self, tag):
+        self.logger.debug("[AMQP-DELIVERED] #%s" % tag.method.delivery_tag)

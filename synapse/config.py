@@ -31,6 +31,7 @@ class Config(object):
             'csr': os.path.join('/etc', name, 'ssl/csr/csr.pem'),
             'key': os.path.join('/etc', name, 'ssl/private/key.pem'),
             'log': os.path.join('/var/log', name, 'messages.log'),
+            'pika_log': os.path.join('/var/log', name, 'pika.log'),
             'plugins': os.path.join('/var/lib', name, 'plugins'),
             }
 
@@ -86,22 +87,27 @@ class Config(object):
             'status_exchange': 'inbox',
             'status_routing_key': '',
             'compliance_routing_key': '',
-            'retry_timeout': 5,
+            'connection_attempts': 5000,
+            'retry_delay': 5,
             'heartbeat': '30',
-            'redelivery_timeout': 10
+            'redelivery_timeout': 10,
+            'poller_delay': 1
             }
 
         conf.update(self.conf.get('rabbitmq', {}))
 
         conf['use_ssl'] = self.sanitize_true_false(conf['use_ssl'])
-        conf['fail_if_no_peer_cert'] = \
-                self.sanitize_true_false(conf['fail_if_no_peer_cert'])
+        conf['fail_if_no_peer_cert'] = self.sanitize_true_false(
+            conf['fail_if_no_peer_cert'])
         conf['ssl_auth'] = self.sanitize_true_false(conf['ssl_auth'])
         conf['port'] = self.sanitize_int(conf['port'])
         conf['ssl_port'] = self.sanitize_int(conf['ssl_port'])
-        conf['retry_timeout'] = self.sanitize_int(conf['retry_timeout'])
+        conf['connection_attempts'] = self.sanitize_int(
+            conf['connection_attempts'])
+        conf['retry_delay'] = self.sanitize_int(conf['retry_delay'])
         conf['heartbeat'] = self.sanitize_int(conf['heartbeat'])
-        conf['redelivery_timeout'] = self.sanitize_int(conf['redelivery_timeout'])
+        conf['redelivery_timeout'] = self.sanitize_int(
+            conf['redelivery_timeout'])
         if not conf['uuid']:
             conf['uuid'] = str(uuid.uuid4())
 
@@ -120,10 +126,10 @@ class Config(object):
 
         conf['default_interval'] = self.sanitize_int(conf['default_interval'])
         conf['alert_interval'] = self.sanitize_int(conf['alert_interval'])
-        conf['publish_status'] = \
-                self.sanitize_true_false(conf['publish_status'])
-        conf['enable_compliance'] = \
-                self.sanitize_true_false(conf['enable_compliance'])
+        conf['publish_status'] = self.sanitize_true_false(
+            conf['publish_status'])
+        conf['enable_compliance'] = self.sanitize_true_false(
+            conf['enable_compliance'])
 
         return conf
 
@@ -159,7 +165,8 @@ class Config(object):
         conf = {
             'level': 'INFO',
             'logger_conf': self.paths['logger_conf'],
-            'path': self.paths['log']
+            'path': self.paths['log'],
+            'pika_log_path': self.paths['pika_log']
             }
 
         conf.update(self.conf.get('log', {}))

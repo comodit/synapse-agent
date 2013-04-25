@@ -5,9 +5,10 @@ import socket
 import traceback
 
 from Queue import Queue
+from pika.exceptions import AMQPConnectionError
 
 from synapse.scheduler import SynSched
-from synapse.amqp import Amqp
+from synapse.amqp import AmqpSynapse
 from synapse.config import config
 from synapse.controller import Controller
 from synapse.logger import logger
@@ -93,24 +94,16 @@ class Dispatcher(object):
         IOLOOP.
         """
 
-        retry_timeout = config.rabbitmq['retry_timeout']
         try:
-
-            self.amqpsynapse = Amqp(config.rabbitmq, pq=self.pq, tq=self.tq)
+            self.amqpsynapse = AmqpSynapse(config.rabbitmq,
+                                           pq=self.pq, tq=self.tq)
             self.sched = SynSched()
             self.controller = Controller(self.sched, self.tq, self.pq)
             self.controller.start()
             self.sched.start()
+            self.amqpsynapse.run()
 
-            while True:
-                try:
-                    self.amqpsynapse.run()
-                except socket.error as err:
-                    self.logger.error("Cannot connect to broker (%s)" % err)
-                    self.logger.info("Retrying in %d seconds" % retry_timeout)
-                    time.sleep(retry_timeout)
-
-        except KeyboardInterrupt:
+        except (AMQPConnectionError, KeyboardInterrupt):
             pass
         except ResourceException as err:
             self.logger.error(str(err))

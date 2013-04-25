@@ -33,6 +33,12 @@ class SynapseFileHandler(logging.FileHandler):
         logging.FileHandler.__init__(self, path, mode)
 
 
+class PikaFileHandler(logging.FileHandler):
+    def __init__(self, mode):
+        path = config.log['pika_log_path']
+        logging.FileHandler.__init__(self, path, mode)
+
+
 class ConsoleUnixColoredHandler(logging.StreamHandler):
     BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
     COLORS = {

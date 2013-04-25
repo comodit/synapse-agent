@@ -1,6 +1,6 @@
 #!/bin/bash
 NAME="synapse-agent"
-platforms=(epel-6-i386)
+platforms=()
 
 if [ -z $1 ]
 then
