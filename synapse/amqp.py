@@ -68,12 +68,13 @@ class Amqp(object):
         self.port = conf['port']
         self.ssl_port = conf['ssl_port']
         self.queue = conf['uuid']
-        self.retry_timeout = conf['retry_timeout']
+        self.retry_delay = conf['retry_delay']
         self.ssl_auth = conf['ssl_auth']
         self.use_ssl = conf['use_ssl']
         self.username = conf['username']
         self.vhost = conf['vhost']
         self.redelivery_timeout = conf['redelivery_timeout']
+        self.connection_attempts = conf['connection_attempts']
 
         # Connection and channel initialization
         self._connection = None
@@ -95,7 +96,9 @@ class Amqp(object):
         pika_options = {'host': self.host,
                         'port': self.port,
                         'virtual_host': self.vhost,
-                        'credentials': credentials}
+                        'credentials': credentials,
+                        'connection_attempts': self.connection_attempts,
+                        'retry_delay': self.retry_delay}
 
         # SSL options
         if self.use_ssl:
@@ -111,7 +114,7 @@ class Amqp(object):
                 }
 
         if self.heartbeat:
-            pika_options['heartbeat'] = self.heartbeat
+            pika_options['heartbeat_interval'] = self.heartbeat
 
         self.parameters = None
 
@@ -141,7 +144,7 @@ class Amqp(object):
         self._connection.ioloop.start()
 
     def connect(self):
-        SelectPoller.TIMEOUT = .1
+        SelectConnection.TIMEOUT = 0.1
         return SelectConnection(self.parameters, self.on_connection_open)
 
     def print_config(self):
@@ -182,11 +185,30 @@ class Amqp(object):
     def add_on_connection_close_callback(self):
         self._connection.add_on_close_callback(self.on_connection_closed)
 
-    def on_connection_closed(self, frame):
+    def on_connection_closed(self, connection, reply_code, reply_text):
         self._consume_channel = None
         self._publish_channel = None
         if self._closing:
             self._connection.ioloop.stop()
+        else:
+            self.logger.warning('Connection closed, retrying internally: '
+                                '(%s) %s', reply_code, reply_text)
+            if self._connection:
+                self._connection.add_timeout(0, self.reconnect)
+
+    def reconnect(self):
+        """Will be invoked by the IOLoop timer if the connection is
+        closed. See the on_connection_closed method.
+
+        """
+        # This is the old connection IOLoop instance, stop its ioloop
+        self._connection.ioloop.stop()
+
+        # Create a new connection
+        self._connection = self.connect()
+
+        # There is now a new connection, needs a new ioloop to run
+        self._connection.ioloop.start()
 
     ##########################
     # Consume channel handling
@@ -207,12 +229,13 @@ class Amqp(object):
         self._consume_channel.add_on_close_callback(
             self.on_consume_channel_close)
 
-    def on_consume_channel_close(self, code, text):
+    def on_consume_channel_close(self, channel, code, text):
         self.logger.debug("Consume channel closed [%d - %s]." % (code, text))
         if code == 320:
             raise socket.error
         else:
-            self._connection.add_timeout(3, self.open_consume_channel)
+            if self._connection:
+                self._connection.add_timeout(3, self.open_consume_channel)
 
     ##########################
     # Publish channel handling
@@ -233,12 +256,13 @@ class Amqp(object):
         self._publish_channel.add_on_close_callback(
             self.on_publish_channel_close)
 
-    def on_publish_channel_close(self, code, text):
+    def on_publish_channel_close(self, channel, code, text):
         self.logger.debug("Publish channel closed [%d - %s]." % (code, text))
         if code == 320:
             raise socket.error
         else:
-            self._connection.add_timeout(3, self.open_publish_channel)
+            if self._connection:
+                self._connection.add_timeout(3, self.open_publish_channel)
 
     ##########################
     # Consuming
@@ -260,7 +284,8 @@ class Amqp(object):
         self.next_get()
 
     def next_get(self):
-        self._connection.add_timeout(.1, self.start_getting)
+        if self._connection:
+            self._connection.add_timeout(.1, self.start_getting)
 
     def handle_delivery(self, channel, method_frame, header_frame, body):
         self._processing = True
@@ -289,8 +314,9 @@ class Amqp(object):
     def start_publishing(self):
         self._publish_channel.confirm_delivery(
             callback=self.on_confirm_delivery)
-        self._connection.add_timeout(1, self._publisher)
-        self._connection.add_timeout(1, self._check_redeliveries)
+        if self._connection:
+            self._connection.add_timeout(1, self._publisher)
+            self._connection.add_timeout(1, self._check_redeliveries)
 
     def on_confirm_delivery(self, tag):
         self.logger.debug("[AMQP-DELIVERED] #%s" % tag.method.delivery_tag)
@@ -301,15 +327,15 @@ class Amqp(object):
         """This callback is used to check at regular interval if there's any
         message to be published to RabbitMQ.
         """
-        if not self._connection.close or not self._connection.closing:
-            try:
-                for i in range(5):
-                    pt = self.pq.get(False)
-                    self._handle_publish(pt)
-            except Empty:
-                pass
+        try:
+            for i in range(5):
+                pt = self.pq.get(False)
+                self._handle_publish(pt)
+        except Empty:
+            pass
 
-        self._connection.add_timeout(.1, self._publisher)
+        if self._connection:
+            self._connection.add_timeout(.1, self._publisher)
 
     def _check_redeliveries(self):
         # In case we have a message to redeliver, let's wait a few seconds
@@ -323,18 +349,20 @@ class Amqp(object):
                                   (key, task.body))
                 self.pq.put(task)
                 del self._deliveries[key]
-        self._connection.add_timeout(.1, self._check_redeliveries)
+        if self._connection:
+            self._connection.add_timeout(.1, self._check_redeliveries)
 
     def _handle_publish(self, publish_task):
         """This method actually publishes the item to the broker after
         sanitizing it from unwanted informations.
         """
         publish_args = publish_task.get()
-        self._publish_channel.basic_publish(**publish_args)
+        if self._publish_channel:
+            self._publish_channel.basic_publish(**publish_args)
 
-        self._message_number += 1
-        self.logger.debug("[AMQP-PUBLISHED] #%s: %s" %
-                         (self._message_number, publish_task.body))
+            self._message_number += 1
+            self.logger.debug("[AMQP-PUBLISHED] #%s: %s" %
+                             (self._message_number, publish_task.body))
         if publish_task.redeliver:
             self._deliveries[self._message_number] = {}
             self._deliveries[self._message_number]["task"] = publish_task

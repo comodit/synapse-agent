@@ -86,7 +86,8 @@ class Config(object):
             'status_exchange': 'inbox',
             'status_routing_key': '',
             'compliance_routing_key': '',
-            'retry_timeout': 5,
+            'connection_attempts': 5000,
+            'retry_delay': 5,
             'heartbeat': '30',
             'redelivery_timeout': 10
             }
@@ -99,7 +100,8 @@ class Config(object):
         conf['ssl_auth'] = self.sanitize_true_false(conf['ssl_auth'])
         conf['port'] = self.sanitize_int(conf['port'])
         conf['ssl_port'] = self.sanitize_int(conf['ssl_port'])
-        conf['retry_timeout'] = self.sanitize_int(conf['retry_timeout'])
+        conf['connection_attempts'] = self.sanitize_int(conf['connection_attempts'])
+        conf['retry_delay'] = self.sanitize_int(conf['retry_delay'])
         conf['heartbeat'] = self.sanitize_int(conf['heartbeat'])
         conf['redelivery_timeout'] = self.sanitize_int(conf['redelivery_timeout'])
         if not conf['uuid']:
