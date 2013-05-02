@@ -18,13 +18,9 @@ def get_repos(name, details=False):
     return repos
 
 
-def normalize(name):
-    return name.lower().replace(" ", "_")
-
 def create_repo(name, attributes={}):
     # Initialize the repo dictionnary
     repo = {}
-    name = normalize(name)
     repo_file = os.path.join(src_dir, name + '.list')
 
     # If the file already exists, load repo into a dict
@@ -51,12 +47,12 @@ def create_repo(name, attributes={}):
             url = baseurl.split()[0]
             distribution = baseurl.split()[1]
             components = set(baseurl.split()[2:])
-        
+
         # Build the new repo dict
         newrepo = {'baseurl': url,
                    'distribution': distribution,
                    'components': components}
-            
+
     except KeyError as err:
         raise ResourceException("Missing mandatory attribute [%s]" % err)
 
@@ -67,7 +63,7 @@ def create_repo(name, attributes={}):
                 rep['distribution'] == newrepo['distribution']):
 
                 del repo[name][index]
-        
+
         repo[name].append(newrepo)
     else:
         repo[name] = [newrepo]
@@ -87,7 +83,6 @@ def _full_entry(entry):
 
 def delete_repo(name, attributes):
     repo = {}
-    name = normalize(name)
     repo_file = os.path.join(src_dir, name + '.list')
 
     # If the file already exists, load repo into a dict
@@ -109,7 +104,7 @@ def delete_repo(name, attributes):
         # Build the new repo dict
         deleterepo = {'baseurl': url,
                       'distribution': distribution}
-            
+
     except KeyError as err:
         raise ResourceException("Missing mandatory attribute [%s]" % err)
 
@@ -119,7 +114,7 @@ def delete_repo(name, attributes):
                 rep['distribution'] == deleterepo['distribution']):
 
                 del repo[name][index]
-    
+
         if not len(repo[name]):
             os.remove(repo_file)
 

@@ -8,11 +8,13 @@ class ReposController(ResourcesController):
     __resource__ = "repos"
 
     def read(self, res_id=None, attributes={}):
+        res_id = self.normalize(res_id)
         details = attributes.get('details')
         return self.module.get_repos(res_id, details=details)
 
     def create(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
+        res_id = self.normalize(res_id)
         baseurl = attributes.get('baseurl')
         monitor = attributes.get('monitor')
         self.comply(name=res_id, baseurl=baseurl, present=True,
@@ -26,6 +28,7 @@ class ReposController(ResourcesController):
 
     def delete(self, res_id=None, attributes=None):
         self.check_mandatory(res_id)
+        res_id = self.normalize(res_id)
         self.comply(monitor=False)
         self.module.delete_repo(res_id, attributes)
 
@@ -40,3 +43,6 @@ class ReposController(ResourcesController):
                 break
 
         return compliant
+
+    def normalize(self, name):
+        return name.lower().replace(" ", "_")
