@@ -126,7 +126,7 @@ class Amqp(object):
         self._connection.ioloop.start()
 
     def connect(self):
-        SelectPoller.TIMEOUT = self.poller_delay
+        SelectPoller.TIMEOUT = float(self.poller_delay)
         return SelectConnection(self.parameters, self.on_connection_open)
 
     def print_config(self):
@@ -265,28 +265,39 @@ class AmqpSynapse(Amqp):
     # Consuming
     ##########################
     def setup_consume_channel(self):
-        self._consume_channel.callbacks.add(
-            self._consume_channel.channel_number,
-            pika.spec.Basic.GetEmpty,
-            self.on_get_empty,
-            one_shot=False)
-        self.start_getting()
+        self.logger.info('Issuing consumer related RPC commands')
+        self._consume_channel.basic_qos(prefetch_count=1)
+        self.add_on_cancel_callback()
+        self._consumer_tag = self._consume_channel.basic_consume(
+            self._on_message, self.queue)
 
-    def start_getting(self):
-        if (self._processing is False and
-            self._consume_channel is not None and
-            self._consume_channel._state == 2):
-            self._consumer_tag = self._consume_channel.basic_get(
-                callback=self.handle_delivery, queue=self.queue)
+    def add_on_cancel_callback(self):
+        self.logger.info('Adding consumer cancellation callback')
+        self._consume_channel.add_on_cancel_callback(
+            self.on_consumer_cancelled)
 
-    def on_get_empty(self, frame):
-        self.next_get()
+    def on_consumer_cancelled(self, method_frame):
+        self.logger.info('Consumer was cancelled remotely, shutting down: %r',
+                    method_frame)
+        if self._consume_channel:
+            self._consume_channel.close()
 
-    def next_get(self):
-        if self._connection:
-            self._connection.add_timeout(.1, self.start_getting)
+    def on_cancelok(self, unused_frame):
+        self.logger.info('RabbitMQ acknowledged '
+                         'the cancellation of the consumer')
+        self.close_consume_channel()
 
-    def handle_delivery(self, channel, method_frame, header_frame, body):
+    def close_consume_channel(self):
+        self.logger.info('Closing the consuming channel')
+        self._consume_channel.close()
+
+    def stop_consuming(self):
+        if self._consume_channel:
+            self.logger.info('Sending a Basic.Cancel RPC command to RabbitMQ')
+            self._consume_channel.basic_cancel(
+                self.on_cancelok, self._consumer_tag)
+
+    def _on_message(self, channel, method_frame, header_frame, body):
         self._processing = True
         self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
                           (method_frame.delivery_tag, body))
@@ -369,4 +380,3 @@ class AmqpSynapse(Amqp):
 
         if publish_args['properties'].correlation_id is not None:
             self._processing = False
-            self.next_get()

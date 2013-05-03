@@ -55,7 +55,7 @@ class Controller(Thread):
 
         response = {}
         while True:
-            task = self.tq.get(True, 60 * 60 * 24 * 365 * 1000)
+            task = self.tq.get()
 
             if task == "stop":
                 break
