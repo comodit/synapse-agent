@@ -98,9 +98,7 @@ def check(permissions, user, collection, res_id):
         res_id_match = perm[2].match(res_id)
 
         # If we have a match, return authorized methods
-        if (user_match and collection_match and
-            res_id_match):
-
+        if (user_match and collection_match and res_id_match):
             return perm[3]
 
     return []

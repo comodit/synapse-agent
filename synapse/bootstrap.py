@@ -195,6 +195,7 @@ class AmqpBootstrap(Amqp):
             self._consume_channel.close()
 
     def stop_consuming(self):
+        self._connection.stop_ioloop_on_close = True
         if self._consume_channel:
             self.logger.debug('Sending a Basic.Cancel RPC command to RabbitMQ')
             self._consume_channel.basic_cancel(self.on_cancelok,

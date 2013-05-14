@@ -8,33 +8,38 @@ class ReposController(ResourcesController):
     __resource__ = "repos"
 
     def read(self, res_id=None, attributes={}):
-        res_id = self.normalize(res_id)
+        res_id = self._normalize(res_id)
         details = attributes.get('details')
         return self.module.get_repos(res_id, details=details)
 
     def create(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
-        res_id = self.normalize(res_id)
+        res_id = self._normalize(res_id)
         baseurl = attributes.get('baseurl')
         monitor = attributes.get('monitor')
-        self.comply(name=res_id, baseurl=baseurl, present=True,
-                    monitor=monitor)
+        state = {
+            'baseurl': baseurl,
+             'present': True
+        }
+        self.save_state(res_id, state, monitor=monitor)
         if baseurl:
             self.module.create_repo(res_id, attributes)
-        return self.module.get_repos(res_id)
+        return self.read(res_id)
 
     def update(self, res_id=None, attributes=None):
         return self.create(res_id=res_id, attributes=attributes)
 
     def delete(self, res_id=None, attributes=None):
         self.check_mandatory(res_id)
-        res_id = self.normalize(res_id)
-        self.comply(monitor=False)
+        monitor = attributes.get('monitor')
+        res_id = self._normalize(res_id)
+        state = {'present': False}
+        self.save_state(res_id, state, monitor=monitor)
         self.module.delete_repo(res_id, attributes)
 
-        return self.module.get_repos(res_id)
+        return self.read(res_id)
 
-    def monitor(self, persisted_state, current_state):
+    def is_compliant(self, persisted_state, current_state):
         compliant = True
 
         for key in persisted_state.keys():
@@ -44,5 +49,5 @@ class ReposController(ResourcesController):
 
         return compliant
 
-    def normalize(self, name):
+    def _normalize(self, name):
         return name.lower().replace(" ", "_")

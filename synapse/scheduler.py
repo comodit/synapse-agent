@@ -3,6 +3,7 @@ import sched
 
 import threading
 
+from synapse.config import config
 from synapse.logger import logger
 
 
@@ -14,14 +15,32 @@ class SynSched(threading.Thread):
 
         # Start the scheduler
         self.scheduler = sched.scheduler(time.time, lambda x: time.sleep(.1))
-        self.logger.debug("Scheduler successfully initialized.")
 
     def run(self):
-        self.logger.debug("Scheduler started...")
         self.scheduler.run()
+        self.logger.debug("Scheduler started...")
 
-    def add_job(self, job, interval):
-        self._periodic(self.scheduler, interval, job)
+    def add_job(self, job, interval, actionargs=()):
+        self.logger.debug("Adding job '%s' to scheduler every %d seconds" %
+                          (job, interval))
+        self._periodic(self.scheduler, interval, job, actionargs=actionargs)
+
+    def update_job(self, job, interval, actionargs=()):
+        job_name = actionargs[0].__name__
+        if not self.exists(job_name):
+            self.add_job(job, interval, actionargs)
+
+    def exists(self, job_name):
+        exists = False
+        for event in self.scheduler.queue:
+            if len(event.argument[3]):
+                if job_name == event.argument[3][0].__name__:
+                    exists = True
+            else:
+                if job_name == event.argument[2].__name__:
+                    exists = True
+
+        return exists
 
     def _periodic(self, scheduler, interval, action, actionargs=()):
         args = (scheduler, interval, action, actionargs)
@@ -32,7 +51,7 @@ class SynSched(threading.Thread):
             pass
 
     def shutdown(self):
-        """Shuts down the scheduler"""
+        """Shuts down the scheduler."""
         self.logger.debug("Canceling scheduled events")
         for event in self.scheduler.queue:
             self.scheduler.cancel(event)

@@ -46,21 +46,25 @@ class FilesController(ResourcesController):
         group is the current group and mode depends on system's umask.
         '''
         self.check_mandatory(res_id)
+        monitor = attributes.get('monitor')
 
         owner = self._get_owner(res_id, attributes)
         group = self._get_group(res_id, attributes)
         mode = self._get_mode(res_id, attributes)
         content = self._get_content(attributes)
 
-        self.comply(name=res_id,
-                    owner=owner,
-                    group=group,
-                    mode=mode,
-                    mod_time = str(datetime.now()),
-                    c_time = str(datetime.now()),
-                    present=True,
-                    md5=self.module.md5_str(content),
-                    monitor=attributes.get('monitor'))
+        state = {
+            'name': res_id,
+            'owner': owner,
+            'group': group,
+            'mode': mode,
+            'mod_time': str(datetime.now()),
+            'c_time': str(datetime.now()),
+            'present': True,
+            'md5': self.module.md5_str(content)
+        }
+
+        self.save_state(res_id, state, monitor=monitor)
 
         if not self.module.exists(res_id):
             self.module.create_file(res_id)
@@ -79,9 +83,11 @@ class FilesController(ResourcesController):
         return self.create(res_id=res_id, attributes=attributes)
 
     def delete(self, res_id=None, attributes={}):
-
         self.check_mandatory(res_id)
-        self.comply(monitor=False)
+        monitor = attributes.get('monitor')
+
+        state = {'present': False}
+        self.save_state(res_id, state, monitor=monitor)
 
         previous_state = self.read(res_id=res_id)
         self.module.delete(res_id)
@@ -90,9 +96,9 @@ class FilesController(ResourcesController):
             previous_state['present'] = False
             self.response = previous_state
 
-        return self.response
+        return self.read(res_id)
 
-    def monitor(self, persisted_state, current_state):
+    def is_compliant(self, persisted_state, current_state):
         compliant = True
 
         # First, compare the present flag. If it differs, no need to go

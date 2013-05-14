@@ -6,10 +6,11 @@ from synapse.synapse_exceptions import ResourceException
 
 from synapse.resource_locator import ResourceLocator
 from synapse.config import config
-from synapse import permissions
 from synapse.logger import logger
-from synapse.task import PublishTask
-
+from synapse.scheduler import SynSched
+from synapse.alerts import AlertsController
+from synapse.task import IncomingMessage, OutgoingMessage, AmqpTask
+from synapse import compare
 
 @logger
 class Controller(Thread):
@@ -18,31 +19,81 @@ class Controller(Thread):
     objects and to call their generic "process" method.
     '''
 
-    def __init__(self, scheduler=None, tq=None, pq=None):
+    def __init__(self, tq=None, pq=None):
 
         self.logger.debug("Initializing the controller...")
         Thread.__init__(self, name="CONTROLLER")
-        permissions_path = config.controller['permissions_path']
 
-        try:
-            self.permissions = permissions.get(permissions_path)
-        except (IOError, OSError) as err:
-            self.logger.critical(err)
-            raise SystemExit
-
-        self.uuid = config.rabbitmq['uuid']
         self.tq = tq
         self.pq = pq
-        self.locator = ResourceLocator(scheduler, pq)
+
+        self.scheduler = SynSched()
+        self.locator = ResourceLocator(pq)
+        self.alerter = AlertsController(self.locator, self.scheduler, pq)
         self.logger.debug("Controller successfully initialized.")
 
-    def close(self):
+    def start_scheduler(self):
+        # Start the scheduler thread
+        self.scheduler.start()
+        self.alerter.start()
+
+        # Prepopulate tasks from config file
+        if config.monitor['enable_monitoring']:
+            self._enable_monitoring()
+        if config.compliance['enable_compliance']:
+            self._enable_compliance()
+
+    def _get_monitor_interval(self, resource):
         try:
-            self.tq.put("stop")
+            default_interval = config.monitor['default_interval']
+            return int(config.monitor.get(resource, default_interval))
+        except ValueError:
+            return default_interval
+
+    def _get_compliance_interval(self, resource):
+        try:
+            default_interval = config.compliance['default_interval']
+            return int(config.compliance.get(resource, default_interval))
+        except ValueError:
+            return default_interval
+
+    def _enable_monitoring(self):
+        resources = self.locator.get_instance()
+        for resource in resources.values():
+            if not len(resource.states):
+                continue
+            interval = self._get_monitor_interval(resource.__resource__)
+            self.scheduler.add_job(resource.monitor_states, interval)
+
+    def _enable_compliance(self):
+        resources = self.locator.get_instance()
+        for resource in resources.values():
+            if not len(resource.states):
+                continue
+            interval = self._get_compliance_interval(resource.__resource__)
+            self.scheduler.add_job(resource.check_compliance, interval)
+
+    def stop_scheduler(self):
+        # Shutdown the scheduler/monitor
+        self.logger.debug("Shutting down global scheduler...")
+        if self.scheduler.isAlive():
+            self.scheduler.shutdown()
+            self.scheduler.join()
+        self.logger.debug("Scheduler stopped.")
+
+    def close(self):
+
+        # Stop this thread by putting a stop message in the blocking queue get
+        self.tq.put("stop")
+
+       # Close properly each resource
+        try:
             for resource in self.locator.get_instance().itervalues():
                 resource.close()
         except ResourceException, e:
             self.logger.debug(str(e))
+
+        self.stop_scheduler()
 
     def run(self):
         """Implementation of the Threading run method. This methods waits on
@@ -56,12 +107,10 @@ class Controller(Thread):
         response = {}
         while True:
             task = self.tq.get()
-
             if task == "stop":
                 break
-
             try:
-                response = self.call_method(task.user_id, task.body)
+                response = self.call_method(task.sender, task.body)
 
             except ResourceException as err:
                 self.logger.error("%s" % err)
@@ -69,66 +118,37 @@ class Controller(Thread):
                 if response.get('status'):
                     del response['status']
                 response['error'] = '%s' % err
-                response['uuid'] = self.uuid
 
             except Exception:
                 self.logger.debug('{0}'.format(traceback.format_exc()))
 
             finally:
-                pt = PublishTask(task.headers, response)
-                self.pq.put(pt)
+                self.pq.put(AmqpTask(response, headers=task.headers))
 
-    def call_method(self, user_id, body, check_perm=True):
+    def call_method(self, user, body):
         """Reads the collection the message needs to reach and then calls the
         process method of that collection. It returns the response built by the
         collection.
         """
         response = {}
-        # Check if collection is specified and that the resource actually
-        # exists.
-        if not isinstance(body, dict):
-            raise ResourceException("Bad message formatting")
 
         # Check if the message body contains filters.
         filters = body.get('filters')
-        res_id = body.get('id') or ''
-
-        if check_perm:
-            perms = permissions.check(self.permissions,
-                                      user_id,
-                                      body.get('collection'),
-                                      res_id)
-
-            if body.get('action') not in perms:
-                raise ResourceException("You don't have permission to do "
-                                        "that.")
 
         if filters:
             if not self._check_filters(filters):
                 raise ResourceException("Filters did not match")
 
-        collection = body.get('collection')
-
-        # Get a reference to the corresponding resource object.
-        # Check if the object isn't already instantiated.
         try:
-            instance = self.locator.get_instance(collection)
+            # Get a reference to the corresponding resource object.
+            instance = self.locator.get_instance(body['collection'])
 
             # Call the resource's generic process method
             response = instance.process(body)
 
-            # Check if it can be dumped in JSON format
-            try:
-                json.dumps(response)
-            except UnicodeDecodeError, err:
-                raise ResourceException("Problem when decoding payload.")
-
         except ResourceException, err:
             self.logger.debug("Resource exception: %s" % err)
-            if response.get('status'):
-                del response['status']
             response['error'] = '%s' % err
-            response['uuid'] = self.uuid
 
         except Exception, e:
             raise ResourceException("There's a problem with your %s plugin: %s"

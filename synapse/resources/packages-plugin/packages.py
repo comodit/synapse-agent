@@ -9,6 +9,7 @@ class PackagesController(ResourcesController):
 
     def read(self, res_id=None, attributes=None):
         status = {}
+
         if res_id:
             status['installed'] = self.module.is_installed(res_id)
         else:
@@ -17,45 +18,43 @@ class PackagesController(ResourcesController):
         return status
 
     def create(self, res_id=None, attributes={}):
-        status = {}
         self.check_mandatory(res_id)
+        monitor = attributes.get('monitor')
 
-        self.comply(installed=True)
+        state = {'installed': True}
+        self.save_state(res_id, state, monitor=monitor)
 
         if not self.module.is_installed(res_id):
             self.module.install(res_id)
 
-        status['installed'] = self.module.is_installed(res_id)
-
-        return status
+        return self.read(res_id)
 
     def update(self, res_id='', attributes=None):
-        status = {}
-        if res_id:
-            monitor = attributes.get('monitor')
-            self.comply(installed=True, monitor=monitor)
-            self.module.update(res_id)
-            status['installed'] = self.module.is_installed(res_id)
+        self.check_mandatory(res_id)
+        monitor = attributes.get('monitor')
 
-        return status
+        state = {'installed': True}
+        self.save_state(res_id, state, monitor=monitor)
+
+        self.module.update(res_id)
+
+        return self.read(res_id)
 
     def delete(self, res_id=None, attributes=None):
-        status = {}
         self.check_mandatory(res_id)
+        monitor = attributes.get('monitor')
 
-        self.comply(monitor=False)
+        state = {'installed': False}
+        self.save_state(res_id, state, monitor=monitor)
 
         if self.module.is_installed(res_id):
             self.module.remove(res_id)
 
-        return status
+        return self.read(res_id)
 
-    def monitor(self, persisted_state, current_state):
-        compliant = True
+    def is_compliant(self, expected, current):
+        for key in expected.keys():
+            if expected[key] != current.get(key):
+                return False
 
-        for key in persisted_state.keys():
-            if current_state.get(key) != persisted_state.get(key):
-                compliant = False
-                break
-
-        return compliant
+        return True

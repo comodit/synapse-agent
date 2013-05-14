@@ -7,7 +7,6 @@ import traceback
 from Queue import Queue
 from pika.exceptions import AMQPConnectionError
 
-from synapse.scheduler import SynSched
 from synapse.amqp import AmqpSynapse
 from synapse.config import config
 from synapse.controller import Controller
@@ -32,7 +31,6 @@ class Dispatcher(object):
 
         # Threads instances variables
         self.controller = None
-        self.sched = None
         self.amqpsynapse = None
 
         self.resourcefile = None
@@ -54,19 +52,13 @@ class Dispatcher(object):
         if self.resourcefile:
             self.resourcefile.done = True
 
+
         # Close the controller and wait for it to quit
         if self.controller:
             if self.controller.isAlive():
                 self.controller.close()
                 self.controller.join()
                 self.logger.debug("Controller thread stopped")
-
-        # Shutdown the scheduler/monitor
-        if self.sched:
-            if self.sched.isAlive():
-                self.sched.shutdown()
-                self.sched.join()
-                self.logger.debug("Scheduler stopped")
 
         self.logger.info("Successfully stopped.")
 
@@ -81,7 +73,7 @@ class Dispatcher(object):
                 'amqp': self.start_amqp,
                 'http': self.start_resourcefile,
                 'file': self.start_resourcefile,
-                }
+        }
         try:
             transports[self.transport]()
         except KeyError as err:
@@ -90,17 +82,15 @@ class Dispatcher(object):
             sys.exit()
 
     def start_amqp(self):
-        """Starts all needed threads: scheduler, controller and AMQP transport
-        IOLOOP.
+        """ Starts all needed threads: controller and AMQP transport IOLOOP.
         """
 
         try:
             self.amqpsynapse = AmqpSynapse(config.rabbitmq,
                                            pq=self.pq, tq=self.tq)
-            self.sched = SynSched()
-            self.controller = Controller(self.sched, self.tq, self.pq)
+            self.controller = Controller(self.tq, self.pq)
             self.controller.start()
-            self.sched.start()
+            self.controller.start_scheduler()
             self.amqpsynapse.run()
 
         except (AMQPConnectionError, KeyboardInterrupt):

@@ -20,7 +20,7 @@ def exec_cmd(cmd):
     stderr = tempfile.TemporaryFile(mode='w+t')
     try:
         proc = Popen(cmd, shell=True, universal_newlines=True,
-                                stdout=stdout, stderr=stderr)
+                     stdout=stdout, stderr=stderr)
         ret_code = proc.wait()
 
         stdout.flush()

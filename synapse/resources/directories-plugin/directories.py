@@ -28,18 +28,21 @@ class DirectoriesController(ResourcesController):
 
     def create(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
+        monitor = attributes.get('monitor')
 
         owner = self._get_owner(res_id, attributes)
         group = self._get_group(res_id, attributes)
         mode = self._get_mode(res_id, attributes)
 
-        self.comply(owner=owner,
-                    group=group,
-                    mode=mode,
-                    mod_time = str(datetime.now()),
-                    c_time = str(datetime.now()),
-                    present=True,
-                    monitor=attributes.get('monitor'))
+        state = {
+            'owner': owner,
+            'group': group,
+            'mode': mode,
+            'mod_time': str(datetime.now()),
+            'c_time': str(datetime.now()),
+            'present': True
+        }
+        self.save_state(res_id, state, monitor=monitor)
 
         self.module.create_folders(res_id)
 
@@ -53,7 +56,9 @@ class DirectoriesController(ResourcesController):
 
     def delete(self, res_id=None, attributes={}):
         self.check_mandatory(res_id)
-        self.comply(monitor=False)
+        monitor = attributes.get('monitor')
+        state = {'present': False}
+        self.save_state(res_id, state, monitor=monitor)
 
         previous_state = self.read(res_id=res_id)
         self.module.delete_folder(res_id)
@@ -62,9 +67,9 @@ class DirectoriesController(ResourcesController):
             previous_state['present'] = False
             self.response = previous_state
 
-        return self.response
+        return self.read(res_id)
 
-    def monitor(self, persisted_state, current_state):
+    def is_compliant(self, persisted_state, current_state):
         compliant = True
 
         # First, compare the present flag. If it differs, no need to go

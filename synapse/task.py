@@ -3,67 +3,168 @@ import json
 from pika import BasicProperties
 from synapse.config import config
 from synapse.logger import logger
+from synapse import permissions
+
+
+@logger
+class Message(object):
+    _model = {}
+
+    def __init__(self, message):
+        self.body = self.validate(message)
+
+    def validate(self, message):
+        raise NotImplementedError
+
+
+class OutgoingMessage(Message):
+
+    def __init__(self,
+                 resource_id='',
+                 collection='',
+                 status={},
+                 msg_type='',
+                 **kwargs):
+        msg = {
+            'resource_id': resource_id,
+            'collection': collection,
+            'status': status,
+            'msg_type': msg_type
+        }
+
+        for kwarg in kwargs:
+            msg[kwarg] = kwargs[kwarg]
+
+        self.body = self.validate(msg)
+
+    def validate(self, msg):
+        _model = {
+            'uuid': config.rabbitmq['uuid'],
+            'resource_id': '',
+            'collection': '',
+            'status': {},
+            'version':config.SYNAPSE_VERSION
+        }
+
+        if not isinstance(msg, dict):
+            raise ValueError("Outgoing message is not a dict.")
+
+        try:
+            _model.update(msg)
+            msg = json.dumps(_model)
+        except AttributeError as err:
+            raise ValueError("Message not well formatted: %s", err)
+
+        return msg
+
+
+class IncomingMessage(Message):
+
+    def validate(self, msg):
+        _model = {
+            'id': '',
+            'collection': '',
+            'action': '',
+            'attributes': {},
+            'monitor': False
+        }
+
+        try:
+            msg = json.loads(msg)
+            _model.update(msg)
+        except AttributeError as err:
+            raise ValueError("Message not well formatted: %s", err)
+
+        if 'collection' not in msg or not msg['collection']:
+            raise ValueError("Collection missing.")
+
+        if 'action' not in msg or not msg['action']:
+            raise ValueError("Action missing.")
+
+        if 'attributes' in msg and not isinstance(msg['attributes'], dict):
+            raise ValueError("Attributes must be a dict.")
+
+        if 'monitor' in msg and not isinstance(msg['monitor'], bool):
+            raise ValueError("Monitor must be a boolean")
+
+        return _model
 
 
 @logger
 class Task(object):
-    def __init__(self, headers, body):
+    def __init__(self, message, sender='', check_permissions=True):
+        self.body = message.body
+        self.sender = sender
+        if check_permissions and isinstance(message, IncomingMessage):
+            self._check_permissions(message.body)
+
+    def _check_permissions(self, msg):
+        allowed = permissions.get(config.controller['permissions_path'])
+        perms = permissions.check(allowed,
+                                  self.sender,
+                                  msg['collection'],
+                                  msg['id'])
+
+        if self.body['action'] not in perms:
+            raise ValueError("You don't have permission to do that.")
+
+
+@logger
+class AmqpTask(Task):
+    def __init__(self, body, headers={}):
         self.headers = headers
-        self.body = self.get_body(body)
+        self.sender = self._get_sender(self.headers)
+        super(AmqpTask, self).__init__(body, sender=self.sender)
+        self.user_id = self._get_user_id()
+        self.correlation_id = self._get_correlation_id(self.headers)
+        self.delivery_tag = self._get_delivery_tag(self.headers)
+        self.publish_exchange = self._get_publish_exchange(self.headers)
+        self.routing_key = self._get_routing_key(self.headers)
+        self.redeliver = False
 
-        self.user_id = self.get_user_id()
-        self.reply_exchange = self.get_reply_exchange()
-        self.reply_to = self.get_reply_to()
-        self.correlation_id = self.get_corr_id()
-        self.redeliver = True
+    def _get_publish_exchange(self, headers):
+        publish_exchange = None
 
-    def get_user_id(self):
-        return self.headers.get('user_id', '') or ''
-
-    def get_reply_exchange(self):
-        re = ''
-        if 'headers' in self.headers:
-            hds = self.headers['headers']
+        if 'headers' in headers:
+            hds = headers['headers']
             if isinstance(hds, dict):
-                re = hds.get('reply_exchange', '')
+                publish_exchange = hds.get('reply_exchange')
 
-        return re
+        if publish_exchange is None:
+            publish_exchange = config.rabbitmq['publish_exchange']
 
-    def get_reply_to(self):
-        return self.headers.get('reply_to', 
-                                self.headers.get('routing_key', '')) or ''
-        
-    def get_corr_id(self):
-        return self.headers.get('correlation_id')
+        return publish_exchange
 
-    def get_body(self, body):
-        try:
-            return json.loads(body)
-        except:
-            raise ValueError("Bad Request.")
+    def _get_delivery_tag(self, headers):
+        return headers.get('delivery_tag')
 
+    def _get_routing_key(self, headers):
+        routing_key = headers.get('reply_to', headers.get('routing_key'))
 
+        if routing_key is None:
+            routing_key = config.rabbitmq['publish_routing_key']
 
-class PublishTask(Task):
-    def get_body(self, body):
-        try:
-            return json.dumps(body)
-        except:
-            raise ValueError("Bad Request.")
+        return routing_key
 
-    def get_user_id(self):
-        return config.rabbitmq['username'] or None
+    def _get_correlation_id(self, headers):
+        return headers.get('correlation_id')
 
-    def get_properties(self):
-        return {
-            'correlation_id': self.get_corr_id(),
-            'user_id': self.get_user_id()
-        }
+    def _get_sender(self, headers):
+        return headers.get('user_id') or ''
+
+    def _get_user_id(self):
+        return config.rabbitmq['username']
 
     def get(self):
-        return {
-            "exchange": self.reply_exchange,
-            "routing_key": self.reply_to,
-            "properties": BasicProperties(**self.get_properties()),
-            "body": self.body
-        }
+        basic_properties = BasicProperties(correlation_id=self.correlation_id,
+                                           user_id=self.user_id)
+        body = self.body
+        if isinstance(body, dict):
+            body = json.dumps(self.body)
+        try:
+            return {"exchange": self.publish_exchange,
+                    "routing_key": self.routing_key,
+                    "properties": basic_properties,
+                    "body": body}
+        except ValueError as err:
+            self.logger.error("Invalid message (%s)" % err)

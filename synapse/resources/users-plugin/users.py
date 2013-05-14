@@ -15,7 +15,7 @@ class UsersController(ResourcesController):
     def create(self, res_id=None, attributes=None):
         password = attributes.get('password')
         login_group = attributes.get('login_group')
-        groups = self.sanitize_groups(attributes.get('groups', []))
+        groups = self._sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir') or '/home/%s' % res_id
         comment = attributes.get('full_name')
         uid = "%s" % attributes.get('uid', '') or ''
@@ -32,17 +32,19 @@ class UsersController(ResourcesController):
         if not shell:
             shell = self.module.get_user_infos(res_id)['shell']
 
-        self.comply(name=res_id,
-                    present=True,
-                    password=self.module.get_pw(res_id),
-                    groups=groups.append(login_group),
-                    homedir=homedir,
-                    gecos=comment,
-                    uid=uid,
-                    gid=gid,
-                    shell=shell)
+        state = {
+            'present': True,
+            'password': self.module.get_pw(res_id),
+            'groups': groups.append(login_group),
+            'homedir': homedir,
+            'gecos': comment,
+            'uid': uid,
+            'gid': gid,
+            'shell': shell
+        }
+        self.save_state(res_id, state, monitor=monitor)
 
-        return self.module.get_user_infos(res_id)
+        return self.read(res_id)
 
     def update(self, res_id=None, attributes=None):
 
@@ -53,7 +55,7 @@ class UsersController(ResourcesController):
 
         password = attributes.get("password")
         login_group = attributes.get("login_group")
-        groups = self.sanitize_groups(attributes.get('groups', []))
+        groups = self._sanitize_groups(attributes.get('groups', []))
         homedir = attributes.get('homedir')
         move_home = attributes.get('move_home')
         comment = attributes.get('full_name')
@@ -64,39 +66,39 @@ class UsersController(ResourcesController):
         if self.module.user_exists(res_id):
             self.module.user_mod(res_id, password, login_group, groups,
                                  homedir, move_home, comment, uid, gid, shell)
+            state = {
+                'present': True,
+                'password': self.module.get_pw(res_id),
+                'groups': groups.append(login_group),
+                'homedir': homedir,
+                'gecos': comment,
+                'uid': uid,
+                'gid': gid,
+                'shell': shell
+            }
 
-            self.comply(name=res_id,
-                        present=True,
-                        password=self.module.get_pw(res_id),
-                        groups=groups.append(login_group),
-                        homedir=homedir,
-                        gecos=comment,
-                        uid=uid,
-                        gid=gid,
-                        shell=shell,
-                        monitor=monitor)
+            self.save_state(res_id, state, monitor=monitor)
 
             self.response = self.module.get_user_infos(res_id)
         else:
             self.response = self.create(res_id=res_id, attributes=attributes)
 
-        return self.response
+        return self.read(res_id)
 
     def delete(self, res_id=None, attributes=None):
-        status = {}
-        self.comply(monitor=False)
+        monitor = attributes.get('monitor')
+        state = {'present': False}
+        self.save_state(res_id, state, monitor=monitor)
         self.module.user_del(res_id)
-        status['present'] = False
+        return self.read(res_id)
 
-        return status
-
-    def sanitize_groups(self, groups):
+    def _sanitize_groups(self, groups):
         group_list = []
         if groups:
             group_list = re.sub('\s', '', groups).split(',')
         return group_list
 
-    def monitor(self, persisted_state, current_state):
+    def is_compliant(self, persisted_state, current_state):
         compliant = True
         name = persisted_state.get('name')
 

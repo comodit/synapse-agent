@@ -3,7 +3,6 @@ import sys
 import imp
 import pkgutil
 
-from synapse.persist import Persistence
 from synapse.config import config
 from synapse.synapse_exceptions import ResourceException
 from synapse.logger import logger
@@ -12,28 +11,20 @@ from synapse.register_plugin import registry
 
 @logger
 class ResourceLocator(object):
-    def __init__(self, scheduler, publish_queue):
-        persister = Persistence()
+    def __init__(self, publish_queue):
         builtin_plugins = os.sep.join([os.path.dirname(__file__), "resources"])
-        self.opts = config.controller
-        custom_plugins = self.opts['custom_plugins']
+        custom_plugins = config.controller['custom_plugins']
         sys.path.append(custom_plugins)
         resources_path_list = [builtin_plugins, custom_plugins]
 
         self.load_packages(resources_path_list)
 
         for controller in registry.itervalues():
-            controller.scheduler = scheduler
-            controller.persister = persister
             controller.publish_queue = publish_queue
-            controller.watch()
 
     def get_instance(self, name=None):
         try:
-            if name:
-                return registry[name]
-            else:
-                return registry
+            return registry[name] if name else registry
         except KeyError:
             raise ResourceException("The resource [%s] does not exist" % name)
 
@@ -48,4 +39,4 @@ class ResourceLocator(object):
     def get_ignored(self):
         # We only ignore resources specified in ignore option
         return [x.strip().lower() for x in
-                self.opts['ignored_resources'].split(',')]
+                config.controller['ignored_resources'].split(',')]

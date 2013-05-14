@@ -8,48 +8,10 @@ from datetime import datetime, timedelta
 
 from pika.adapters import SelectConnection
 from pika.adapters.select_connection import SelectPoller
-from pika import PlainCredentials
+from pika.credentials import PlainCredentials, ExternalCredentials
 
 from synapse.logger import logger
-from synapse.task import Task
-
-
-class ExternalCredentials(PlainCredentials):
-    """ The PlainCredential class is extended to work with external rabbitmq
-    auth mechanism. Here, the rabbitmq-auth-mechanism-ssl plugin than can be
-    found here http://www.rabbitmq.com/plugins.html#rabbitmq_auth_mechanism_ssl
-
-    Rabbitmq's configuration must be adapted as follow:
-    [
-    {rabbit, [
-     {auth_mechanisms, ['EXTERNAL', 'PLAIN']},
-     {ssl_listeners, [5671]},
-     {ssl_options, [{cacertfile,"/etc/rabbitmq/testca/cacert.pem"},
-                    {certfile,"/etc/rabbitmq/server/cert.pem"},
-                    {keyfile,"/etc/rabbitmq/server/key.pem"},
-                    {verify,verify_peer},
-                    {fail_if_no_peer_cert,true}]}
-    ]}
-    ].
-    """
-    TYPE = 'EXTERNAL'
-
-    def __init__(self):
-        self.erase_on_connect = False
-
-    def response_for(self, start):
-
-        if ExternalCredentials.TYPE not in start.mechanisms.split():
-            return None, None
-        return ExternalCredentials.TYPE, ""
-
-    def erase_credentials(self):
-        pass
-
-
-# As mentioned in pika's PlainCredentials class, we need to append the new
-# authentication mechanism to VALID_TYPES
-pika.credentials.VALID_TYPES.append(ExternalCredentials)
+from synapse.task import IncomingMessage, AmqpTask
 
 
 @logger
@@ -85,6 +47,7 @@ class Amqp(object):
         self._publish_channel_number = None
         self._message_number = 0
         self._deliveries = {}
+        self._responses = []
 
         self._closing = False
 
@@ -127,7 +90,8 @@ class Amqp(object):
 
     def connect(self):
         SelectPoller.TIMEOUT = float(self.poller_delay)
-        return SelectConnection(self.parameters, self.on_connection_open)
+        return SelectConnection(self.parameters, self.on_connection_open,
+                                stop_ioloop_on_close=False)
 
     def print_config(self):
         to_print = [("Port", self.port),
@@ -136,15 +100,15 @@ class Amqp(object):
                     ("Exchange", self.exchange),
                     ("Heartbeat", self.heartbeat),
                     ("Host", self.host),
-                    ("Use_ssl", self.use_ssl),
-                    ("Ssl_auth", self.ssl_auth),
+                    ("Use ssl", self.use_ssl),
+                    ("Ssl auth", self.ssl_auth),
                     ("Vhost", self.vhost),
                     ("Redelivery timeout", self.redelivery_timeout)]
         to_print.sort()
         max_length = len(max([x[0] for x in to_print], key=len))
 
-        self.logger.info("##################################")
         self.logger.info("[AMQP-CONFIGURATION]")
+        self.logger.info("##################################")
         for info in to_print:
             self.logger.info("{0:>{1}}: {2}".format(info[0], max_length,
                                                      info[1]))
@@ -153,12 +117,10 @@ class Amqp(object):
     def stop(self):
         self.logger.debug("[AMQP] Invoked stop.")
         self._closing = True
+        self.close_publish_channel()
+        self.close_consume_channel()
         if self._connection:
-            try:
-                self._connection.close()
-                self._connection.ioloop.start()
-            except Exception as err:
-                self.logger.error(err)
+            self._connection.close()
         self.logger.info("[AMQP] Stopped.")
 
     def on_connection_open(self, connection):
@@ -176,12 +138,11 @@ class Amqp(object):
         if self._closing:
             self._connection.ioloop.stop()
         else:
-            self.logger.warning('Connection closed, retrying internally: '
-                                '(%s) %s', reply_code, reply_text)
-            if self._connection:
-                self._connection.add_timeout(0, self.reconnect)
+            self.logger.warning('Connection closed, reopening in 5 seconds')
+            self._connection.add_timeout(5, self.reconnect)
 
     def reconnect(self):
+
         """Will be invoked by the IOLoop timer if the connection is
         closed. See the on_connection_closed method.
 
@@ -203,6 +164,7 @@ class Amqp(object):
         self._connection.channel(self.on_consume_channel_open)
 
     def on_consume_channel_open(self, channel):
+        channel.basic_qos(prefetch_count=1)
         self._consume_channel_number = channel.channel_number
         self.logger.debug("Consume channel #%d successfully opened." %
                           channel.channel_number)
@@ -220,7 +182,8 @@ class Amqp(object):
             raise socket.error
         else:
             if self._connection:
-                self._connection.add_timeout(2, self.open_consume_channel)
+                self._connection.add_timeout(self.retry_delay,
+                                             self.open_consume_channel)
 
     ############################
     # Publish channel handling #
@@ -229,7 +192,13 @@ class Amqp(object):
         self.logger.debug("Opening publish channel.")
         self._connection.channel(self.on_publish_channel_open)
 
+    def close_publish_channel(self):
+        self.logger.debug('Closing the publish channel')
+        if self._publish_channel and self._publish_channel._state == 2:
+            self._publish_channel.close()
+
     def on_publish_channel_open(self, channel):
+        channel.basic_qos(prefetch_count=1)
         self._publish_channel_number = channel.channel_number
         self.logger.debug("Publish channel #%d successfully opened." %
                           channel.channel_number)
@@ -247,13 +216,19 @@ class Amqp(object):
             raise socket.error
         else:
             if self._connection:
-                self._connection.add_timeout(2, self.open_publish_channel)
+                self._connection.add_timeout(self.retry_delay,
+                                             self.open_publish_channel)
 
     def setup_publish_channel(self):
         raise NotImplementedError()
 
     def setup_consume_channel(self):
         raise NotImplementedError()
+
+    def close_consume_channel(self):
+        self.logger.debug('Closing the consume channel')
+        if self._consume_channel and self._consume_channel._state == 2:
+            self._consume_channel.close()
 
 class AmqpSynapse(Amqp):
     def __init__(self, conf, pq, tq):
@@ -265,55 +240,54 @@ class AmqpSynapse(Amqp):
     # Consuming
     ##########################
     def setup_consume_channel(self):
-        self.logger.info('Issuing consumer related RPC commands')
-        self._consume_channel.basic_qos(prefetch_count=1)
         self.add_on_cancel_callback()
         self._consumer_tag = self._consume_channel.basic_consume(
             self._on_message, self.queue)
 
     def add_on_cancel_callback(self):
-        self.logger.info('Adding consumer cancellation callback')
         self._consume_channel.add_on_cancel_callback(
             self.on_consumer_cancelled)
 
     def on_consumer_cancelled(self, method_frame):
-        self.logger.info('Consumer was cancelled remotely, shutting down: %r',
-                    method_frame)
-        if self._consume_channel:
-            self._consume_channel.close()
+        self.logger.debug('Consumer was cancelled remotely, shutting down: %r',
+                          method_frame)
+        self._consume_channel.close()
 
     def on_cancelok(self, unused_frame):
-        self.logger.info('RabbitMQ acknowledged '
+        self.logger.debug('RabbitMQ acknowledged '
                          'the cancellation of the consumer')
         self.close_consume_channel()
 
-    def close_consume_channel(self):
-        self.logger.info('Closing the consuming channel')
-        self._consume_channel.close()
 
     def stop_consuming(self):
         if self._consume_channel:
-            self.logger.info('Sending a Basic.Cancel RPC command to RabbitMQ')
+            self.logger.debug('Sending a Basic.Cancel RPC command to RabbitMQ')
             self._consume_channel.basic_cancel(
                 self.on_cancelok, self._consumer_tag)
+
+    def acknowledge_message(self, delivery_tag):
+        self._consume_channel.basic_ack(delivery_tag=delivery_tag)
+        self.logger.debug("[AMQP-ACK] Received message #%s acked" %
+                          delivery_tag)
 
     def _on_message(self, channel, method_frame, header_frame, body):
         self._processing = True
         self.logger.debug("[AMQP-RECEIVE] #%s: %s" %
                           (method_frame.delivery_tag, body))
-        self._consume_channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-        self.logger.debug("[AMQP-ACK] Received message #%s acked" %
-                          method_frame.delivery_tag)
         try:
-            task = Task(vars(header_frame), body)
+            message = IncomingMessage(body)
+            headers = vars(header_frame)
+            headers.update(vars(method_frame))
+            task = AmqpTask(message, headers=headers)
             if not method_frame.redelivered:
+                self._responses.append(method_frame.delivery_tag)
                 self.tq.put(task)
             else:
                 self._processing = False
                 self.logger.warning("Message redelivered. Won't process.")
         except ValueError as err:
             self._processing = False
-            self.logger.error(err)
+            self.logger.warning(err)
 
     ##########################
     # Publishing
@@ -325,7 +299,7 @@ class AmqpSynapse(Amqp):
         self._publish_channel.confirm_delivery(
             callback=self.on_confirm_delivery)
         if self._connection:
-            self._connection.add_timeout(1, self._publisher)
+            self._connection.add_timeout(.1, self._publisher)
             self._connection.add_timeout(1, self._check_redeliveries)
 
     def on_confirm_delivery(self, tag):
@@ -362,20 +336,29 @@ class AmqpSynapse(Amqp):
         if self._connection:
             self._connection.add_timeout(.1, self._check_redeliveries)
 
-    def _handle_publish(self, publish_task):
+    def _handle_publish(self, message):
         """This method actually publishes the item to the broker after
         sanitizing it from unwanted informations.
         """
-        publish_args = publish_task.get()
+        publish_args = message.get()
+
+        if (self._consume_channel and self._consume_channel._state == 2):
+            delivery_tag = message.delivery_tag
+            if delivery_tag in self._responses:
+                self.acknowledge_message(delivery_tag)
+                index = self._responses.index(delivery_tag)
+                del self._responses[index]
+
         if (self._publish_channel and self._publish_channel._state == 2):
             self._publish_channel.basic_publish(**publish_args)
 
             self._message_number += 1
-            self.logger.debug("[AMQP-PUBLISHED] #%s: %s" %
-                             (self._message_number, publish_task.body))
-        if publish_task.redeliver:
+            self.logger.debug("[AMQP-PUBLISHED] #%s: <%s> %s" %
+                             (self._message_number, message.correlation_id,
+                              message.body))
+        if message.redeliver:
             self._deliveries[self._message_number] = {}
-            self._deliveries[self._message_number]["task"] = publish_task
+            self._deliveries[self._message_number]["task"] = message
             self._deliveries[self._message_number]["ts"] = datetime.now()
 
         if publish_args['properties'].correlation_id is not None:

@@ -16,11 +16,15 @@ class ServicesController(ResourcesController):
 
         return status
 
+    def create(self, res_id=None, attributes=None):
+        return self.update(res_id=res_id, attributes=attributes)
+
     def update(self, res_id=None, attributes=None):
         # Id must be provided. Update cannot be done on multiple resources.
         # Attributes key must be provided
         status = {}
         self.check_mandatory(res_id, attributes)
+        monitor = attributes.get('monitor')
 
         enabled = attributes.get('enabled')
         running = attributes.get('running')
@@ -28,7 +32,12 @@ class ServicesController(ResourcesController):
         reload_service = attributes.get('reload')
         monitor = attributes.get('monitor')
 
-        self.comply(running=running, enabled=enabled, monitor=monitor)
+        state = {
+            'running': running,
+            'enabled': enabled
+        }
+
+        self.save_state(res_id, state, monitor=monitor)
 
         # Retrieve the current state...
         status['running'] = self.module.is_running(res_id)
@@ -64,13 +73,10 @@ class ServicesController(ResourcesController):
 
         return status
 
-    def create(self, res_id=None, attributes=None):
-        return self.update(res_id=res_id, attributes=attributes)
-
     def delete(self, res_id=None, attributes=None):
         return {}
 
-    def monitor(self, persisted_state, current_state):
+    def is_compliant(self, persisted_state, current_state):
         compliant = True
 
         for key in persisted_state.keys():

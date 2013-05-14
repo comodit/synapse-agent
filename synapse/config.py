@@ -13,11 +13,21 @@ import ConfigParser
 from distutils import sysconfig
 
 
+synapse_version = "Undefined"
+
+try:
+    import synapse.version as version_mod
+    if version_mod.VERSION:
+        synapse_version = version_mod.VERSION
+except (ImportError, AttributeError):
+    pass
+
 class Config(object):
 
     TRUE_ANSWERS = (1, "y", "yes", "True", "true", True, "on")
+    SYNAPSE_VERSION = synapse_version
 
-    def __init__(self, name='synapse', devel=False, windows=False):
+    def __init__(self, name='synapse', windows=False):
 
         self.paths = {
             'pid': os.path.join('/var/run', name + '.pid'),
@@ -33,16 +43,9 @@ class Config(object):
             'log': os.path.join('/var/log', name, 'messages.log'),
             'pika_log': os.path.join('/var/log', name, 'pika.log'),
             'plugins': os.path.join('/var/lib', name, 'plugins'),
-            }
+        }
 
-        if devel:
-            curdir = os.path.dirname(os.path.abspath(__file__))
-            rootdir = os.path.dirname(curdir)
-            for key, value in self.paths.iteritems():
-                newvalue = os.path.join(rootdir, 'devel', value[1:])
-                self.paths.update({key: newvalue})
-
-        elif windows:
+        if windows:
             prefix = os.path.dirname(sysconfig.PREFIX)
             full_prefix = os.path.join(prefix, 'synapse-agent')
             for key, value in self.paths.iteritems():
@@ -53,6 +56,7 @@ class Config(object):
 
         self.rabbitmq = self.set_rabbitmq_config()
         self.monitor = self.set_monitor_config()
+        self.compliance = self.set_compliance_config()
         self.resourcefile = self.set_resourcefile_config()
         self.controller = self.set_controller_config()
         self.log = self.set_logger_config()
@@ -84,7 +88,10 @@ class Config(object):
             'password': 'guest',
             'uuid': '',
             'exchange': 'amq.fanout',
+            'publish_exchange': 'inbox',
+            'publish_routing_key': '',
             'status_exchange': 'inbox',
+            'reply_exchange': 'inbox',
             'status_routing_key': '',
             'compliance_routing_key': '',
             'connection_attempts': 5000,
@@ -92,7 +99,7 @@ class Config(object):
             'heartbeat': '30',
             'redelivery_timeout': 10,
             'poller_delay': 1
-            }
+        }
 
         conf.update(self.conf.get('rabbitmq', {}))
 
@@ -116,20 +123,31 @@ class Config(object):
     def set_monitor_config(self):
 
         conf = {
-                'enable_compliance': False,
-                'default_interval': '30',
-                'alert_interval': '3600',
-                'publish_status': False
-                }
+            'enable_monitoring': True,
+            'default_interval': '30',
+            'publish_status': False,
+        }
 
         conf.update(self.conf.get('monitor', {}))
 
         conf['default_interval'] = self.sanitize_int(conf['default_interval'])
-        conf['alert_interval'] = self.sanitize_int(conf['alert_interval'])
         conf['publish_status'] = self.sanitize_true_false(
             conf['publish_status'])
-        conf['enable_compliance'] = self.sanitize_true_false(
-            conf['enable_compliance'])
+
+        return conf
+
+    def set_compliance_config(self):
+
+        conf = {
+            'enable_compliance': True,
+            'default_interval': '30',
+            'alert_interval': '3600',
+        }
+
+        conf.update(self.conf.get('compliance', {}))
+
+        conf['default_interval'] = self.sanitize_int(conf['default_interval'])
+        conf['alert_interval'] = self.sanitize_int(conf['alert_interval'])
 
         return conf
 
@@ -139,7 +157,7 @@ class Config(object):
             'url': 'http://localhost/setup.json',
             'path': '/tmp/setup.json',
             'timeout': 10
-            }
+        }
 
         conf.update(self.conf.get('resourcefile', {}))
 
@@ -156,6 +174,8 @@ class Config(object):
             'distribution_name': self.get_platform()[0],
             'distribution_version': self.get_platform()[1],
             }
+
+        #TODO check for mandatory config files like permissions
 
         conf.update(self.conf.get('controller', {}))
 
@@ -235,9 +255,8 @@ class Config(object):
         return filecontent
 
 
-devel = os.path.exists(os.path.join(os.path.dirname(__file__), '..', 'devel'))
 windows = platform.system().lower() == 'windows'
 try:
-    config = Config(name='synapse-agent', devel=devel, windows=windows)
+    config = Config(name='synapse-agent', windows=windows)
 except Exception as err:
     sys.exit('Error in config module: %s' % err)

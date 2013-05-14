@@ -11,21 +11,28 @@ class GroupsController(ResourcesController):
         return self.module.get_group_infos(res_id)
 
     def create(self, res_id=None, attributes=None):
+        monitor = attributes.get('monitor')
         gid = "%s" % attributes.get("gid")
-        self.comply(name=res_id, present=True, gid=gid)
+        state = {
+            'present': True,
+            'gid': gid
+        }
+        self.save_state(res_id, state, monitor=monitor)
         self.module.group_add(res_id, gid)
 
-        return self.module.get_group_infos(res_id)
+        return self.read(res_id)
 
     def update(self, res_id=None, attributes={}):
         status = {}
         new_name = attributes.get('new_name')
         gid = "%s" % attributes.get('gid')
         monitor = attributes.get('monitor')
+        state = {
+            'present': True,
+            'gid': gid
+        }
 
-        self.comply(name=new_name, present=True, gid=gid, monitor=monitor)
-        if monitor is False:
-            return self.comply(monitor=False)
+        self.save_state(res_id, state, monitor=monitor)
 
         if self.module.exists(res_id):
             if new_name or gid:
@@ -36,14 +43,16 @@ class GroupsController(ResourcesController):
         else:
             self.create(res_id=res_id, attributes=attributes)
 
-        return status
+        return self.read(res_id)
 
     def delete(self, res_id=None, attributes=None):
+        monitor = attributes.get('monitor')
+        state = {'present': False}
+        self.save_state(res_id, state, monitor=monitor)
         self.module.group_del(res_id)
-        self.comply(monitor=False)
-        return self.module.get_group_infos(res_id)
+        return self.read(res_id)
 
-    def monitor(self, persisted_state, current_state):
+    def is_compliant(self, persisted_state, current_state):
         compliant = True
 
         for key in persisted_state.keys():

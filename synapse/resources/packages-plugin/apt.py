@@ -1,4 +1,5 @@
 import os
+import logging
 
 from synapse.syncmd import exec_cmd
 from synapse.synapse_exceptions import ResourceException
@@ -7,6 +8,7 @@ from synapse.synapse_exceptions import ResourceException
 env_vars = {'DEBIAN_FRONTEND': 'noninteractive'}
 os.environ.update(env_vars)
 
+log = logging.getLogger('synapse')
 
 def install(name):
     ret = exec_cmd("/usr/bin/apt-get -qy update")
@@ -53,5 +55,6 @@ def is_installed(name):
     # 4. Get first character (i=installed)
     try:
         return ret['stdout'].split('\n')[-2][0] == 'i'
-    except IndexError:
-        raise ResourceException(ret['stderr'])
+    except IndexError as err:
+        log.error(err)
+        return False

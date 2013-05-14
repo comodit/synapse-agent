@@ -20,7 +20,6 @@ def register(mapping, cls):
         if not name in registry:
             mod = get_module(mapping, path)
             registry[name] = cls(mod)
-            log.debug('\t%s plugin sucessfully loaded' % name.capitalize())
 
 
 def get_module(os_mapping, dirpath):
@@ -29,9 +28,7 @@ def get_module(os_mapping, dirpath):
     opts = config.controller
     dist = opts['distribution_name']
     ver = opts['distribution_version']
-    combinations = ((dist, ver),
-                    (dist, 'default'),
-                    ('default', 'default'))
+    combinations = ((dist, ver), (dist, 'default'), ('default', 'default'))
 
     mod_name = None
     for comb in combinations:

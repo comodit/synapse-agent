@@ -3,8 +3,10 @@ import grp
 import hashlib
 import os
 import pwd
+import logging
 
 from synapse.synapse_exceptions import ResourceException
+log = logging.getLogger('synapse.unix-files')
 
 
 def exists(path):
@@ -32,8 +34,8 @@ def get_content(path):
     if not os.path.exists(path):
         raise ResourceException('File not found, sorry !')
 
-    with open(path, 'rb') as file:
-        content = file.read()
+    with open(path, 'rb') as fd:
+        content = fd.read()
 
     return content
 
@@ -62,10 +64,12 @@ def md5(path, block_size=2 ** 20):
 
 
 def md5_str(content):
-    if content is not None:
-        m = hashlib.md5()
-        m.update(content)
-        return m.hexdigest()
+    if content is None:
+        content = ''
+
+    m = hashlib.md5()
+    m.update(content)
+    return m.hexdigest()
 
 
 def create_file(path):
@@ -106,9 +110,10 @@ def update_meta(path, owner, group, filemode):
 
 
 def delete(path):
-    if not os.path.exists(path):
-        raise ResourceException('File not found, sorry !')
-    os.remove(path)
+    try:
+        os.remove(path)
+    except OSError:
+        log.debug('File %s does not exist', path)
 
 
 def mod_time(path):
