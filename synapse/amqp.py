@@ -283,9 +283,9 @@ class AmqpSynapse(Amqp):
                 self._responses.append(method_frame.delivery_tag)
                 self.tq.put(task)
             else:
-                self._processing = False
-                self.logger.warning("Message redelivered. Won't process.")
+                raise ValueError("Message redelivered. Won't process.")
         except ValueError as err:
+            self.acknowledge_message(method_frame.delivery_tag)
             self._processing = False
             self.logger.warning(err)
 
