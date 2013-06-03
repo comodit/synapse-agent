@@ -97,7 +97,7 @@ class AlertsController(object):
 
     def _publish(self, sensor, alert):
         msg = {
-            'collection': sensor.__self__.__class__.__name__,
+            'collection': sensor.__self__.__class__.__resource__,
             'msg_type': 'alert',
             'status': alert
         }
@@ -117,15 +117,6 @@ class AlertsController(object):
         for al in self.alerts:
             if alert['property'] == al['property']:
                 self.alerts.remove(al)
-
-    def _execute(self, name, cmd):
-        result = exec_cmd(cmd)
-        if result['returncode'] != 0:
-            result['name'] = name
-            msg = OutgoingMessage(collection=self.__resource__,
-                                  status=result,
-                                  msg_type='alert')
-            self.publish(msg)
 
     def close(self):
         super(AlertsController, self).close()
