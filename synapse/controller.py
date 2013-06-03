@@ -152,7 +152,7 @@ class Controller(Thread):
 
         except Exception, e:
             raise ResourceException("There's a problem with your %s plugin: %s"
-                                    % (collection, e))
+                                    % (body['collection'], e))
 
         # Return the response
         return response
