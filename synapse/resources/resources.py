@@ -28,8 +28,6 @@ class ResourcesController(object):
         alert_interval = config.compliance['alert_interval']
         self.alert_interval = timedelta(seconds=alert_interval)
 
-        self.allowed_methods = ('create', 'read', 'update', 'delete')
-
         self.module = module
         self.res_id = None
         self.states_manager = StatesManager(self.__resource__)
@@ -72,11 +70,7 @@ class ResourcesController(object):
 
         self.res_id = arg.get('id')
 
-        if action not in self.allowed_methods:
-            raise ResourceException('[%s] is not allowed or unknown' % action)
-
-        msg = "[%s] %s" % (self.__resource__.upper(),
-                           self.action_map[action])
+        msg = "[%s] %s" % (self.__resource__.upper(), self.action_map[action])
         if self.res_id:
             msg += " '%s'" % self.res_id
         if params:
