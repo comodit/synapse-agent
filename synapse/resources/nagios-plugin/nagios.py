@@ -26,6 +26,15 @@ class NagiosPluginsController(ResourcesController):
         self._load_jobs()
         self.scheduler.add_job(self._reload, 30)
 
+    def read(self, res_id=None, attributes=None):
+        sensors = attributes.keys()
+        status = {}
+        for sensor in sensors:
+            if sensor in self.plugins.keys():
+                status[sensor] = exec_cmd(self.plugins[sensor]['command'])
+
+        return status
+
     def _configure(self):
         config_path = os.path.join(config.paths['config_path'], 'nagios.d')
         if not os.path.exists(config_path):
