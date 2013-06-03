@@ -10,11 +10,32 @@ class HostsController(ResourcesController):
 
     __resource__ = "hosts"
 
-    def read(self, res_id=None, attributes=None):
-        return {
-            'hostname': self.module.get_hostname(),
-            'ip': self.module.get_ip_addresses()
-        }
+    def read(self, res_id=None, attributes={}):
+        sensors = attributes.keys()
+
+        if not len(sensors):
+            return {
+                'hostname': self.module.get_hostname(),
+                'ip': self.module.get_ip_addresses()
+            }
+
+        status = {}
+        if 'hostname' in sensors:
+            status['hostname'] = self.module.get_hostname()
+        if 'ip' in sensors:
+            status['ip'] = self.module.get_ip_addresses()
+        if 'memtotal' in sensors:
+            status['memtotal'] = self.module.get_memtotal()
+        if 'macaddress' in sensors:
+            status['macaddress'] = self.module.get_mac_addresses()
+        if 'platform' in sensors:
+            status['platform'] = self.module.get_platform()
+        if 'uptime' in sensors:
+            status['uptime'] = self.module.get_uptime()
+        if 'cpu' in sensors:
+            status['cpu'] = self.cpu()
+
+        return status
 
     def ping(self):
         result = self.read()
