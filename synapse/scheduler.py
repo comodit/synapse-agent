@@ -54,6 +54,8 @@ class SynSched(threading.Thread):
             action(*actionargs)
         except NotImplementedError:
             pass
+        except Exception as err:
+            self.logger.error("Could not run job \'%s\' (%s)", action, err)
 
     def shutdown(self):
         """Shuts down the scheduler."""
