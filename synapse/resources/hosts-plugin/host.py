@@ -28,7 +28,7 @@ def get_cpu():
         import psutil
         return str(psutil.cpu_percent(interval=1))
     except ImportError:
-        return None
+        return 0
 
 
 def get_hostname():
