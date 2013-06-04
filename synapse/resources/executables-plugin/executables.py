@@ -19,17 +19,16 @@ class ExecutablesController(ResourcesController):
         if not res_id:
             raise ResourceException('Please provide a command')
 
-        #exec_status = self.module.exec_threaded_cmd(res_id)
+        #status = self.module.exec_threaded_cmd(res_id)
         self.logger.info("Executing: %s" % res_id)
-        exec_status = exec_cmd(res_id)
-        if exec_status['returncode'] != 0:
-            error = "Status code %s: [%s]" %(exec_status["returncode"],
-                                             exec_status["stderr"])
+        status = exec_cmd(res_id)
+        if status['returncode'] != 0:
+            error = "Status code %s: [%s]" %(status["returncode"],
+                                             status["stderr"])
             raise ResourceException(error)
-        self.response = self.set_response(exec_status)
         self.logger.info("Done executing '%s'" % res_id)
 
-        return self.response
+        return status
 
     def delete(self, res_id=None, attributes=None):
         pass
