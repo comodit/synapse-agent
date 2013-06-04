@@ -27,20 +27,25 @@ class SynSched(threading.Thread):
 
     def update_job(self, job, interval, actionargs=()):
         job_name = actionargs[0].__name__
-        if not self.exists(job_name):
+        existing_job = self.get_job(job_name)
+        if existing_job is None:
             self.add_job(job, interval, actionargs)
+        elif (interval != existing_job.argument[1] or
+              actionargs != existing_job.argument[3]):
+                self.scheduler.cancel(existing_job)
+                self.add_job(job, interval, actionargs)
 
-    def exists(self, job_name):
-        exists = False
+    def get_job(self, job_name):
+        job = None
         for event in self.scheduler.queue:
             if len(event.argument[3]):
                 if job_name == event.argument[3][0].__name__:
-                    exists = True
+                    job = event
             else:
                 if job_name == event.argument[2].__name__:
-                    exists = True
+                    job = event
 
-        return exists
+        return job
 
     def _periodic(self, scheduler, interval, action, actionargs=()):
         args = (scheduler, interval, action, actionargs)
