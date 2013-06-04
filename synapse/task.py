@@ -95,8 +95,9 @@ class Task(object):
     def __init__(self, message, sender='', check_permissions=True):
         self.body = message.body
         self.sender = sender
-        if check_permissions and isinstance(message, IncomingMessage):
-            self._check_permissions(message.body)
+        #TODO: re-enable permission
+        #if check_permissions and isinstance(message, IncomingMessage):
+        #    self._check_permissions(message.body)
 
     def _check_permissions(self, msg):
         allowed = permissions.get(config.controller['permissions_path'])
