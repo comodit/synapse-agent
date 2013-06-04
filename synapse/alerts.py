@@ -46,7 +46,8 @@ class AlertsController(object):
             conf = RawConfigParser()
             conf.read(full_path)
             for section in conf.sections():
-                self.plugins[section] = []
+                if not section in self.plugins:
+                    self.plugins[section] = []
                 items = dict(conf.items(section))
                 for key, value in items.iteritems():
                     task = {'method': key,
