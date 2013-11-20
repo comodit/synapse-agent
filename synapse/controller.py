@@ -34,8 +34,8 @@ class Controller(Thread):
 
     def start_scheduler(self):
         # Start the scheduler thread
-        self.scheduler.start()
         self.alerter.start()
+        self.scheduler.start()
 
         # Prepopulate tasks from config file
         if config.monitor['enable_monitoring']:
