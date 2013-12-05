@@ -9,6 +9,7 @@ from synapse.config import config
 from synapse.logger import logger
 from synapse.scheduler import SynSched
 from synapse.alerts import AlertsController
+from synapse.colectors import ColectorsController
 from synapse.task import IncomingMessage, OutgoingMessage, AmqpTask
 from synapse import compare
 
@@ -30,10 +31,12 @@ class Controller(Thread):
         self.scheduler = SynSched()
         self.locator = ResourceLocator(pq)
         self.alerter = AlertsController(self.locator, self.scheduler, pq)
+        self.colector = ColectorsController(self, self.locator, self.scheduler, pq)
         self.logger.debug("Controller successfully initialized.")
 
     def start_scheduler(self):
         # Start the scheduler thread
+        self.colector.start()
         self.alerter.start()
         self.scheduler.start()
 
