@@ -22,9 +22,9 @@ class NagiosPluginsController(ResourcesController):
         self.plugins = {}
         self._load_configs()
         self.scheduler = SynSched()
-        self.scheduler.start()
         self._load_jobs()
         self.scheduler.add_job(self._reload, 30)
+        self.scheduler.start()
 
     def read(self, res_id=None, attributes=None):
         sensors = attributes.keys()
