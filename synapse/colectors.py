@@ -1,3 +1,11 @@
+# ****************************
+# FIXME:
+#       - sent message may need a timestamp (ntp, ...)
+#       - some messages should be kept in the queue if amqp connection failed
+#       - amqp connection should be kept alive
+#
+# ****************************
+
 import os
 from io import StringIO
 
