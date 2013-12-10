@@ -39,6 +39,9 @@ class Dispatcher(object):
         # transport and are used for incoming tasks and responses
         self.pq = Queue()
         self.tq = Queue()
+        # Same but for colector
+        self.ctq = Queue()
+        self.cpq = Queue()
 
     def stop(self, signum, frame):
         """This method handles SIGINT and SIGTERM signals. """
@@ -88,7 +91,7 @@ class Dispatcher(object):
         try:
             self.amqpsynapse = AmqpSynapse(config.rabbitmq,
                                            pq=self.pq, tq=self.tq)
-            self.controller = Controller(self.tq, self.pq)
+            self.controller = Controller(self.tq, self.pq, self.ctq, self.cpq)
             self.controller.start()
             self.controller.start_scheduler()
             self.amqpsynapse.run()

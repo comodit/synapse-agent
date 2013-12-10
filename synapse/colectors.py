@@ -1,7 +1,7 @@
 import os
 from io import StringIO
 
-
+from amqp_colectors import AmqpColectors
 from ConfigParser import RawConfigParser
 from synapse.syncmd import exec_cmd
 from synapse.config import config
@@ -44,7 +44,6 @@ class ColectorsController(ResourcesController):
         return config_path
 
     def _reload(self):
-        self.logger.warning("RELOAD")
         self._load_configs()
         self._load_jobs()
 
@@ -88,7 +87,6 @@ class ColectorsController(ResourcesController):
     def _execute(self, method_ref, name, cmd):
         result = exec_cmd(cmd)
         result['name'] = name
-	self.logger.warning("publish: %s " % result)
         self._publish(self.__resource__, result)
 
     def _publish(self, sensor, alert):
@@ -98,7 +96,7 @@ class ColectorsController(ResourcesController):
             'status': alert
         }
     
-        self.publish_queue.put(AmqpTask(OutgoingMessage(**msg)))
+        self.publish_queue.put(msg)
 
     def close(self):
         super(ColectorsController, self).close()

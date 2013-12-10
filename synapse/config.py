@@ -59,12 +59,14 @@ class Config(object):
         self.compliance = self.set_compliance_config()
         self.resourcefile = self.set_resourcefile_config()
         self.controller = self.set_controller_config()
+	self.colector = self.set_colector_config()
         self.log = self.set_logger_config()
 
         self.sections = [('rabbitmq', self.rabbitmq),
                          ('monitor', self.monitor),
                          ('resourcefile', self.resourcefile),
                          ('controller', self.controller),
+                         ('colector', self.colector),
                          ('log', self.log)]
 
     def add_section(self, name, section):
@@ -102,6 +104,55 @@ class Config(object):
         }
 
         conf.update(self.conf.get('rabbitmq', {}))
+
+        conf['use_ssl'] = self.sanitize_true_false(conf['use_ssl'])
+        conf['fail_if_no_peer_cert'] = self.sanitize_true_false(
+            conf['fail_if_no_peer_cert'])
+        conf['ssl_auth'] = self.sanitize_true_false(conf['ssl_auth'])
+        conf['port'] = self.sanitize_int(conf['port'])
+        conf['ssl_port'] = self.sanitize_int(conf['ssl_port'])
+        conf['connection_attempts'] = self.sanitize_int(
+            conf['connection_attempts'])
+        conf['retry_delay'] = self.sanitize_int(conf['retry_delay'])
+        conf['heartbeat'] = self.sanitize_int(conf['heartbeat'])
+        conf['redelivery_timeout'] = self.sanitize_int(
+            conf['redelivery_timeout'])
+        if not conf['uuid']:
+            conf['uuid'] = str(uuid.uuid4())
+
+        return conf
+
+    def set_colector_config(self):
+        conf = { 
+            'use_ssl': False,
+            'fail_if_no_peer_cert': True,
+            'ssl_auth': False,
+            'cacertfile': self.paths['cacert'],
+            'csrfile': self.paths['csr'],
+            'certfile': self.paths['cert'],
+            'keyfile': self.paths['key'],
+            'host': 'localhost',
+            'vhost': '/',
+            'port': '5672',
+            'ssl_port': '5671',
+            'username': 'guest',
+            'password': 'guest',
+            'uuid': '', 
+            'exchange': 'amq.fanout',
+            'publish_exchange': 'inbox',
+            'publish_routing_key': '', 
+            'status_exchange': 'inbox',
+            'reply_exchange': 'inbox',
+            'status_routing_key': '', 
+            'compliance_routing_key': '', 
+            'connection_attempts': 5000,
+            'retry_delay': 5,
+            'heartbeat': '30',
+            'redelivery_timeout': 10, 
+            'poller_delay': 1
+        }   
+
+        conf.update(self.conf.get('colector', {}))
 
         conf['use_ssl'] = self.sanitize_true_false(conf['use_ssl'])
         conf['fail_if_no_peer_cert'] = self.sanitize_true_false(

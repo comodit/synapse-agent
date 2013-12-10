@@ -4,6 +4,7 @@ import traceback
 from threading import Thread
 from synapse.synapse_exceptions import ResourceException
 
+from synapse.amqp_colectors import AmqpColectors
 from synapse.resource_locator import ResourceLocator
 from synapse.config import config
 from synapse.logger import logger
@@ -20,24 +21,28 @@ class Controller(Thread):
     objects and to call their generic "process" method.
     '''
 
-    def __init__(self, tq=None, pq=None):
+    def __init__(self, tq=None, pq=None, ctq=None, cpq=None):
 
         self.logger.debug("Initializing the controller...")
         Thread.__init__(self, name="CONTROLLER")
 
         self.tq = tq
         self.pq = pq
+	self.ctq = ctq
+        self.cpq = cpq
 
         self.scheduler = SynSched()
         self.locator = ResourceLocator(pq)
         self.alerter = AlertsController(self.locator, self.scheduler, pq)
-        self.colector = ColectorsController(self, self.locator, self.scheduler, pq)
+        self.colector = ColectorsController(self, self.locator, self.scheduler, cpq)
+	self.amqp_colector = AmqpColectors(self.scheduler, cpq)
         self.logger.debug("Controller successfully initialized.")
 
     def start_scheduler(self):
         # Start the scheduler thread
-        self.colector.start()
+	self.colector.start()
         self.alerter.start()
+	self.amqp_colector.start()
         self.scheduler.start()
 
         # Prepopulate tasks from config file
@@ -45,7 +50,7 @@ class Controller(Thread):
             self._enable_monitoring()
         if config.compliance['enable_compliance']:
             self._enable_compliance()
-
+        
     def _get_monitor_interval(self, resource):
         try:
             default_interval = config.monitor['default_interval']
@@ -88,6 +93,8 @@ class Controller(Thread):
 
         # Stop this thread by putting a stop message in the blocking queue get
         self.tq.put("stop")
+	self.ctq.put("stop")
+	
 
        # Close properly each resource
         try:
@@ -109,6 +116,9 @@ class Controller(Thread):
 
         response = {}
         while True:
+            task = self.ctq.get()
+            if task == "stop":
+                break
             task = self.tq.get()
             if task == "stop":
                 break
@@ -126,6 +136,7 @@ class Controller(Thread):
                 self.logger.debug('{0}'.format(traceback.format_exc()))
 
             finally:
+                self.cpq.put(AmqpTask(response, headers=task.headers))
                 self.pq.put(AmqpTask(response, headers=task.headers))
 
     def call_method(self, user, body):
