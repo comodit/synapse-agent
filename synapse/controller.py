@@ -35,7 +35,7 @@ class Controller(Thread):
         self.locator = ResourceLocator(pq)
         self.alerter = AlertsController(self.locator, self.scheduler, pq)
         self.colector = ColectorsController(self, self.locator, self.scheduler, cpq)
-	self.amqp_colector = AmqpColectors(self.scheduler, cpq)
+	self.amqp_colector = AmqpColectors(config.colector, self.scheduler, cpq)
         self.logger.debug("Controller successfully initialized.")
 
     def start_scheduler(self):
@@ -84,6 +84,7 @@ class Controller(Thread):
     def stop_scheduler(self):
         # Shutdown the scheduler/monitor
         self.logger.debug("Shutting down global scheduler...")
+        self.amqp_colector.stop()
         if self.scheduler.isAlive():
             self.scheduler.shutdown()
             self.scheduler.join()
