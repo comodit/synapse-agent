@@ -92,6 +92,6 @@ class AmqpColectors(Amqp,Thread):
         self._check_queue()
 
     def setup_publish_channel(self):
-        self._publish_channel.exchange_declare(exchange=self.exchange,type=self.conf['type'])
+        self._publish_channel.exchange_declare(exchange=self.exchange,exchange_type=self.conf['type'])
         result = self._publish_channel.queue_declare(self.on_queue_declare_ok, exclusive=True)
 
