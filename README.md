@@ -4,8 +4,6 @@ together features of Configuration Management and Orchestration in a
 lightweight framework.  Written in Python and using AMQP for messaging between
 the nodes.
 
-[Learn more !](http://comodit.github.com/synapse-agent/)
-
 [View first screencast](http://www.youtube.com/watch?v=SrXDTZJLeGg)
 
 ## What do you need ?
@@ -48,11 +46,10 @@ Manage any kind of resources on the remote hosts with custom plugins. Available 
 
 Why not building a "cron" plugin.
 
-How ? Take a look at the existing [packages-plugin](https://github.com/comodit/synapse-agent/tree/master/synapse/resources/packages-plugin) and start your own ?
+How ? Take a look at example [packages-plugin](https://github.com/comodit/synapse-agent/tree/master/synapse/resources/packages-plugin) and start your own ?
 
 ### Lightweight
-Easy to deploy, small memory footprint.
-Look at the [Quick Start Guide](https://github.com/comodit/synapse-agent/wiki/Quick-Start-Guide)
+Easy to deploy, small memory footprint. Cehck our WIKI for our quickstart tour.
 
 ### Secure
 No incoming open port required (not even port 22/ssh), secured with PKI/SSL
