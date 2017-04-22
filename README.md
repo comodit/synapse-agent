@@ -1,5 +1,5 @@
-## What is the Synapse Agent ?
-Synapse enables you to remotely manage a large number of hosts.  It brings
+## What is the Agent ?
+It is a simple tool that enables you to remotely manage a large number of hosts.  It brings
 together features of Configuration Management and Orchestration in a
 lightweight framework.  Written in Python and using AMQP for messaging between
 the nodes.
@@ -10,14 +10,14 @@ the nodes.
 
 ## What do you need ?
 * A RabbitMQ server
-* The synapse-agent on the hosts you want to manage
-* The synapse-client to control them
+* The agent on the hosts you want to manage
+* The client to control them
 
 ## Features
 ### REST API
 Manipulates resources (packages, files, services, ...) instead of executing commands.
-Describe a resource state and synapse takes care of it.
-For example, installing a package means sending this kind of message to synapse:
+Describe a resource state and the tool takes care of it.
+For example, installing a package means sending this kind of message:
 
 ```bash
 {
@@ -30,7 +30,7 @@ For example, installing a package means sending this kind of message to synapse:
 }
 ```
 
-Of course, you can use the synapse-client to make it easy:
+Of course, you can use the client to make it easy or use external tool like http://comodit.com:
 
 ```bash
 synapse-client packages install htop
@@ -63,9 +63,9 @@ No incoming open port required (not even port 22/ssh), secured with PKI/SSL
 ### Fast 
 Parallelize tasks accross all your hosts.
 
-Synapse-agents are automatically bound to an AMQP fanout exchange. It means that if a
+The agents are automatically bound to an AMQP fanout exchange. It means that if a
 single message is published into that exchange, the RabbitMQ server broadcasts
-this message to every synapse-agent bound to that exchange.
+this message to every agent bound to that exchange.
 
 ### Flexible 
 Reach nodes without knowing their ip or hostname, filter requests by hostname, ip, platform
