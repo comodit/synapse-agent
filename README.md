@@ -30,11 +30,8 @@ For example, installing a package means sending this kind of message:
 }
 ```
 
-Of course, you can use the client to make it easy or use external tool like http://comodit.com:
+We also provide a client tool to ease its use or you can use http://comodit.com which alos benefit of the agents.
 
-```bash
-synapse-client packages install htop
-```
 
 ### OS Abstraction
 Abstract the definition of resources so you can focus on the what, not the how.
@@ -70,7 +67,3 @@ this message to every agent bound to that exchange.
 ### Flexible 
 Reach nodes without knowing their ip or hostname, filter requests by hostname, ip, platform
 Want to reach only hosts in particular subdomains ?
-
-```bash
-synapse-client services syslog-ng restart --filter_hosts *.guardis.be
-```
